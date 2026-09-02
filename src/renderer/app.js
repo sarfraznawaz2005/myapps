@@ -29,7 +29,6 @@ function onShellState(payload) {
   applyTheme();
   sidebar.applySidebarWidth();
   sidebar.renderList();
-  sidebar.updateDndButton();
   toolbar.update();
   contentEmpty.style.display = getState().links.length === 0 ? 'flex' : 'none';
 }

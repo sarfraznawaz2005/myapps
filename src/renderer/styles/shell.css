@@ -53,21 +53,6 @@
 }
 #sidebar-header button:hover { background: var(--bg-hover); color: var(--text); }
 
-#sidebar-search {
-  display: none;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
-}
-#sidebar-search.open { display: block; }
-#sidebar-search input {
-  width: 100%;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 8px;
-  color: var(--text);
-}
-
 #sidebar-list {
   flex: 1;
   overflow-y: auto;
@@ -202,6 +187,9 @@
   z-index: 5;
 }
 
+#sidebar-collapse-toggle svg { transform: scaleX(-1); }
+#sidebar.collapsed-mode #sidebar-collapse-toggle svg { transform: scaleX(1); }
+
 #sidebar-footer {
   border-top: 1px solid var(--border);
   padding: 6px;
@@ -222,7 +210,6 @@
   white-space: nowrap;
 }
 .footer-btn:hover { background: var(--bg-hover); color: var(--text); }
-.footer-btn.dnd-on { color: var(--warning); }
 
 /* ---------- Toolbar + content ---------- */
 

@@ -6,18 +6,13 @@ import { openGroupDialog } from './dialog-group.js';
 const listEl = document.getElementById('sidebar-list');
 const shellEl = document.getElementById('shell');
 const sidebarEl = document.getElementById('sidebar');
-const searchBox = document.getElementById('sidebar-search');
-const searchInput = document.getElementById('sidebar-search-input');
 const resizer = document.getElementById('sidebar-resizer');
-const btnCollapse = document.getElementById('btn-collapse');
-const btnSearch = document.getElementById('btn-search');
+const collapseToggle = document.getElementById('sidebar-collapse-toggle');
 const btnAddLink = document.getElementById('btn-add-link');
 const btnAddGroup = document.getElementById('btn-add-group');
 const btnSettings = document.getElementById('btn-settings');
-const btnDnd = document.getElementById('btn-dnd');
 const btnEmptyAdd = document.getElementById('btn-empty-add');
 
-let filterText = '';
 let dragging = null; // { type: 'link'|'group', id }
 let ungroupedCollapsed = false;
 const UNGROUPED_ID = '__ungrouped__';
@@ -71,11 +66,6 @@ function groupAggregate(groupId) {
   return '';
 }
 
-function matchesFilter(link) {
-  if (!filterText) return true;
-  return link.name.toLowerCase().includes(filterText) || link.url.toLowerCase().includes(filterText);
-}
-
 function escapeAttr(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
@@ -94,9 +84,8 @@ function linkRowHtml(link) {
 function groupHtml(group) {
   const state = getState();
   const links = state.links
-    .filter((l) => (l.groupId || null) === group.id && matchesFilter(l))
+    .filter((l) => (l.groupId || null) === group.id)
     .sort((a, b) => a.order - b.order);
-  if (filterText && links.length === 0) return '';
   const collapsed = group.collapsed ? ' collapsed' : '';
   const agg = groupAggregate(group.id);
   const countLabel = `${links.length} link${links.length === 1 ? '' : 's'}`;
@@ -129,7 +118,7 @@ export function renderList() {
   const state = getState();
   const groups = state.groups.slice().sort((a, b) => a.order - b.order);
   const ungrouped = state.links
-    .filter((l) => !l.groupId && matchesFilter(l))
+    .filter((l) => !l.groupId)
     .sort((a, b) => a.order - b.order);
 
   let html = groups.map(groupHtml).join('');
@@ -268,6 +257,7 @@ export function applySidebarWidth() {
   shellEl.style.setProperty('--sw', `${sidebarWidth}px`);
   shellEl.classList.toggle('collapsed', !!sidebarCollapsed);
   sidebarEl.classList.toggle('collapsed-mode', !!sidebarCollapsed);
+  collapseToggle.title = sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar';
 }
 
 function initResizer() {
@@ -298,21 +288,18 @@ function initResizer() {
 export function initSidebar() {
   initResizer();
 
-  btnCollapse.innerHTML = iconHtml('chevron');
-  btnSearch.innerHTML = iconHtml('search');
-  btnAddLink.innerHTML = `${iconHtml('plus')}<span>Add</span>`;
-  btnAddGroup.innerHTML = `${iconHtml('folder')}<span>New group</span>`;
+  collapseToggle.innerHTML = iconHtml('chevron');
+  btnAddLink.innerHTML = `${iconHtml('plus')}<span>Add Link</span>`;
+  btnAddGroup.innerHTML = `${iconHtml('folder')}<span>Add Group</span>`;
   btnSettings.innerHTML = `${iconHtml('gear')}<span>Settings</span>`;
-  btnDnd.innerHTML = `${iconHtml('moon')}<span>Do Not Disturb</span>`;
 
-  btnCollapse.addEventListener('click', () => {
+  collapseToggle.addEventListener('click', () => {
     const ui = getState().ui;
     setState({ ui: { ...ui, sidebarCollapsed: !ui.sidebarCollapsed } });
     applySidebarWidth();
     pushLayout();
   });
 
-  btnSearch.addEventListener('click', () => toggleSearch());
   btnAddLink.addEventListener('click', () => openLinkDialog(null));
   btnAddGroup.addEventListener('click', () => openGroupDialog(null));
   btnEmptyAdd.addEventListener('click', () => openLinkDialog(null));
@@ -320,27 +307,4 @@ export function initSidebar() {
     const { openSettingsDialog } = await import('./dialog-settings.js');
     openSettingsDialog();
   });
-  btnDnd.addEventListener('click', async () => {
-    const dnd = getState().settings.dnd || { enabled: false };
-    await window.myApps.invoke('dnd:set', { enabled: !dnd.enabled, until: null });
-  });
-
-  searchInput.addEventListener('input', () => {
-    filterText = searchInput.value.trim().toLowerCase();
-    renderList();
-  });
-  searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') toggleSearch(false);
-  });
-}
-
-function toggleSearch(force) {
-  const open = force !== undefined ? force : !searchBox.classList.contains('open');
-  searchBox.classList.toggle('open', open);
-  if (open) { searchInput.focus(); } else { searchInput.value = ''; filterText = ''; renderList(); }
-}
-
-export function updateDndButton() {
-  const dnd = getState().settings.dnd || { enabled: false };
-  btnDnd.classList.toggle('dnd-on', !!dnd.enabled);
 }

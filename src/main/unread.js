@@ -98,11 +98,12 @@ class UnreadTracker {
       const m = String(title || '').match(re);
       if (m && m[1] !== undefined) { count = parseInt(m[1], 10); break; }
     }
-    if (count !== null) {
-      s.title.seen = true;
-      s.title.count = count;
-      this._emit(linkId);
-    }
+    // Update on every title change, including when the count disappears
+    // (read) — a title.seen guard that only fired on a match left old
+    // counts stuck forever once the page's title went back to normal.
+    s.title.seen = true;
+    s.title.count = count;
+    this._emit(linkId);
   }
 
   reportFavicon(linkId, favicons) {

@@ -314,6 +314,7 @@ function initIpc(ctx) {
         sidebarWidth: payload.sidebarWidth,
         sidebarCollapsed: payload.sidebarCollapsed,
         showToolbar: payload.showToolbar,
+        sidebarFooterOpen: payload.sidebarFooterOpen,
       });
     }
     viewManager.layout();

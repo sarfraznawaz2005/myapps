@@ -198,6 +198,17 @@
   gap: 2px;
 }
 
+#sidebar-footer-actions {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+}
+#sidebar-footer-actions.open { display: flex; }
+
+#btn-footer-toggle.open { background: var(--bg-hover); color: var(--text); }
+#btn-footer-toggle svg { transition: transform var(--motion-fast); }
+#btn-footer-toggle.open svg { transform: rotate(90deg); }
+
 .footer-btn {
   display: flex;
   align-items: center;

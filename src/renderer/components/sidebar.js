@@ -8,6 +8,8 @@ const shellEl = document.getElementById('shell');
 const sidebarEl = document.getElementById('sidebar');
 const resizer = document.getElementById('sidebar-resizer');
 const collapseToggle = document.getElementById('sidebar-collapse-toggle');
+const btnFooterToggle = document.getElementById('btn-footer-toggle');
+const footerActions = document.getElementById('sidebar-footer-actions');
 const btnAddLink = document.getElementById('btn-add-link');
 const btnAddGroup = document.getElementById('btn-add-group');
 const btnSettings = document.getElementById('btn-settings');
@@ -249,15 +251,18 @@ function pushLayout() {
     sidebarWidth: getState().ui.sidebarWidth,
     sidebarCollapsed: getState().ui.sidebarCollapsed,
     showToolbar: getState().ui.showToolbar,
+    sidebarFooterOpen: getState().ui.sidebarFooterOpen,
   });
 }
 
 export function applySidebarWidth() {
-  const { sidebarWidth, sidebarCollapsed } = getState().ui;
+  const { sidebarWidth, sidebarCollapsed, sidebarFooterOpen } = getState().ui;
   shellEl.style.setProperty('--sw', `${sidebarWidth}px`);
   shellEl.classList.toggle('collapsed', !!sidebarCollapsed);
   sidebarEl.classList.toggle('collapsed-mode', !!sidebarCollapsed);
   collapseToggle.title = sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar';
+  footerActions.classList.toggle('open', !!sidebarFooterOpen);
+  btnFooterToggle.classList.toggle('open', !!sidebarFooterOpen);
 }
 
 function initResizer() {
@@ -289,6 +294,7 @@ export function initSidebar() {
   initResizer();
 
   collapseToggle.innerHTML = iconHtml('chevron');
+  btnFooterToggle.innerHTML = `${iconHtml('chevron')}<span>More</span>`;
   btnAddLink.innerHTML = `${iconHtml('plus')}<span>Add Link</span>`;
   btnAddGroup.innerHTML = `${iconHtml('folder')}<span>Add Group</span>`;
   btnSettings.innerHTML = `${iconHtml('gear')}<span>Settings</span>`;
@@ -297,6 +303,13 @@ export function initSidebar() {
     const ui = getState().ui;
     setState({ ui: { ...ui, sidebarCollapsed: !ui.sidebarCollapsed } });
     applySidebarWidth();
+    pushLayout();
+  });
+
+  btnFooterToggle.addEventListener('click', () => {
+    const open = footerActions.classList.toggle('open');
+    btnFooterToggle.classList.toggle('open', open);
+    setState({ ui: { ...getState().ui, sidebarFooterOpen: open } });
     pushLayout();
   });
 

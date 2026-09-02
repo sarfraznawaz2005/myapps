@@ -39,6 +39,7 @@ function defaultUi() {
     window: { x: null, y: null, width: 1280, height: 860, maximized: false },
     sidebarWidth: 240,
     sidebarCollapsed: false,
+    sidebarFooterOpen: false,
     lastActiveLinkId: null,
     showToolbar: true,
   };

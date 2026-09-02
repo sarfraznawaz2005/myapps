@@ -1,0 +1,78 @@
+'use strict';
+
+const path = require('path');
+const { BrowserWindow, screen } = require('electron');
+
+function validateBounds(bounds) {
+  if (!bounds || typeof bounds.x !== 'number' || typeof bounds.y !== 'number') return null;
+  const displays = screen.getAllDisplays();
+  const fits = displays.some((d) => {
+    const a = d.workArea;
+    return bounds.x >= a.x - 50 && bounds.y >= a.y - 50 &&
+      bounds.x < a.x + a.width - 50 && bounds.y < a.y + a.height - 50;
+  });
+  return fits ? bounds : null;
+}
+
+function createMainWindow({ store, startHidden }) {
+  const { ui } = store.getState();
+  const savedBounds = validateBounds(ui.window);
+  const width = (savedBounds && savedBounds.width) || ui.window.width || 1280;
+  const height = (savedBounds && savedBounds.height) || ui.window.height || 860;
+
+  const winOpts = {
+    width,
+    height,
+    show: false,
+    autoHideMenuBar: true,
+    backgroundColor: '#0f1115',
+    icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
+    webPreferences: {
+      preload: path.join(__dirname, '..', '..', 'preload', 'shell-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false,
+      spellcheck: !!store.getState().settings.spellcheck,
+    },
+  };
+  if (savedBounds && typeof savedBounds.x === 'number') {
+    winOpts.x = savedBounds.x;
+    winOpts.y = savedBounds.y;
+  }
+
+  const mainWindow = new BrowserWindow(winOpts);
+  mainWindow.setMenuBarVisibility(false);
+
+  mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+
+  mainWindow.once('ready-to-show', () => {
+    if (ui.window.maximized) mainWindow.maximize();
+    if (!startHidden && !store.getState().settings.startMinimized) {
+      mainWindow.show();
+    }
+  });
+
+  let boundsSaveTimer = null;
+  const saveBoundsDebounced = () => {
+    if (boundsSaveTimer) clearTimeout(boundsSaveTimer);
+    boundsSaveTimer = setTimeout(() => {
+      if (mainWindow.isDestroyed()) return;
+      const b = mainWindow.getBounds();
+      store.updateUi({
+        window: {
+          x: b.x, y: b.y, width: b.width, height: b.height,
+          maximized: mainWindow.isMaximized(),
+        },
+      });
+    }, 300);
+  };
+
+  mainWindow.on('resize', saveBoundsDebounced);
+  mainWindow.on('move', saveBoundsDebounced);
+  mainWindow.on('maximize', saveBoundsDebounced);
+  mainWindow.on('unmaximize', saveBoundsDebounced);
+
+  return mainWindow;
+}
+
+module.exports = { createMainWindow, validateBounds };

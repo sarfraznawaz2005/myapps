@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:; connect-src 'self';" />
+<title>My Apps</title>
+<link rel="stylesheet" href="styles/tokens.css" />
+<link rel="stylesheet" href="styles/shell.css" />
+<link rel="stylesheet" href="styles/dialogs.css" />
+</head>
+<body>
+  <div id="shell">
+    <div id="sidebar">
+      <div id="sidebar-header">
+        <span class="brand">My Apps</span>
+        <button id="btn-search" title="Quick switch (Ctrl+K)"></button>
+        <button id="btn-collapse" title="Collapse sidebar"></button>
+      </div>
+      <div id="sidebar-search"><input id="sidebar-search-input" type="text" placeholder="Filter links…" /></div>
+      <div id="sidebar-list"></div>
+      <div id="sidebar-resizer"></div>
+      <div id="sidebar-footer">
+        <button class="footer-btn" id="btn-add-link"></button>
+        <button class="footer-btn" id="btn-add-group"></button>
+        <button class="footer-btn" id="btn-settings"></button>
+        <button class="footer-btn" id="btn-dnd"></button>
+      </div>
+    </div>
+    <div id="content-col">
+      <div id="toolbar"></div>
+      <div id="content-area">
+        <div id="content-empty">
+          <div>No links yet — add your first one.</div>
+          <button id="btn-empty-add">+ Add a link</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="quick-switch">
+    <div class="panel">
+      <input id="quick-switch-input" type="text" placeholder="Jump to a link…" />
+      <div class="results" id="quick-switch-results"></div>
+    </div>
+  </div>
+
+  <div id="dialog-host"></div>
+  <div id="toast-host"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

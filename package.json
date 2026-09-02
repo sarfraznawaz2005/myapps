@@ -1,0 +1,39 @@
+{
+  "name": "myapps",
+  "version": "1.0.0",
+  "description": "My Apps — a lightweight multi-service desktop wrapper",
+  "main": "main.js",
+  "private": true,
+  "license": "MIT",
+  "author": "Sarfraz",
+  "scripts": {
+    "start": "electron .",
+    "make-icons": "node scripts/make-icons.js",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^32.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "allowScripts": {
+    "electron@32.3.3": true
+  },
+  "build": {
+    "appId": "com.myapps.desktopapp",
+    "productName": "My Apps",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload/**/*",
+      "src/**/*",
+      "assets/**/*",
+      "!**/*.md"
+    ],
+    "win": {
+      "target": "zip",
+      "icon": "assets/icon.ico"
+    }
+  }
+}

@@ -146,7 +146,7 @@ class ViewManager extends EventEmitter {
       if (prevView) prevView.setVisible(false);
     }
     this.activeId = id;
-    view.setVisible(!this.modalOpen);
+    this._syncActiveVisibility();
     this.layout();
     this.store.updateUi({ lastActiveLinkId: id });
     const link = this._link(id);
@@ -157,8 +157,22 @@ class ViewManager extends EventEmitter {
 
   setModalOpen(open) {
     this.modalOpen = open;
+    this._syncActiveVisibility();
+  }
+
+  // Detaching (not just hiding) the active view while a modal/menu is open
+  // avoids a white-flash on Windows: WebContentsView.setVisible(false) alone
+  // can leave a stale white paint over the shell instead of revealing it.
+  _syncActiveVisibility() {
     const view = this.activeId ? this.views.get(this.activeId) : null;
-    if (view) view.setVisible(!open);
+    if (!view) return;
+    const attached = this.mainWindow.contentView.children.includes(view);
+    if (this.modalOpen) {
+      if (attached) this.mainWindow.contentView.removeChildView(view);
+    } else {
+      if (!attached) this.mainWindow.contentView.addChildView(view);
+      view.setVisible(true);
+    }
   }
 
   layout() {

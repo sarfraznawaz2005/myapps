@@ -39,8 +39,14 @@ if (!gotLock) {
   function showAppWindow() {
     const w = ctx.mainWindow;
     if (!w || w.isDestroyed()) return;
-    if (!w.isVisible()) w.show();
+    // A window that went through a real OS minimize (titlebar button) needs
+    // to be restored out of that state first — maximizing while still
+    // minimized leaves it slightly short of full size once shown.
+    if (w.isMinimized()) w.restore();
+    // Maximize before show — maximizing after show can race the OS's
+    // restore animation and leave the window slightly short of full size.
     if (ctx.store.getState().ui.window.maximized && !w.isMaximized()) w.maximize();
+    if (!w.isVisible()) w.show();
     w.focus();
     if (ctx.hibernationController) ctx.hibernationController.onWindowShow();
   }
@@ -116,9 +122,25 @@ if (!gotLock) {
       }
     });
 
+    // Windows sends the exact same 'minimize' event whether the user clicked
+    // our titlebar's minimize button or the OS "Show Desktop" command
+    // minimized every window at once. WM_SYSCOMMAND/SC_MINIMIZE only fires
+    // for a real titlebar click, so we use that to tell the two apart and
+    // only send the window to the tray for a genuine user click.
+    let minimizeClickedByUser = false;
+    if (process.platform === 'win32') {
+      const WM_SYSCOMMAND = 0x0112;
+      const SC_MINIMIZE = 0xf020;
+      mainWindow.hookWindowMessage(WM_SYSCOMMAND, (wParam) => {
+        if ((wParam.readUInt16LE(0) & 0xfff0) === SC_MINIMIZE) minimizeClickedByUser = true;
+      });
+    }
+
     mainWindow.on('minimize', (event) => {
+      const wasUserClick = process.platform !== 'win32' || minimizeClickedByUser;
+      minimizeClickedByUser = false;
       const { settings } = store.getState();
-      if (settings.minimizeToTray && settings.showTrayIcon) {
+      if (wasUserClick && settings.minimizeToTray && settings.showTrayIcon) {
         event.preventDefault();
         mainWindow.hide();
         hibernationController.onWindowHide();

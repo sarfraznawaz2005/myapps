@@ -53,9 +53,12 @@ function openOverflowMenu(anchor) {
   const id = getState().activeLinkId;
   if (!id) return;
   const existing = document.getElementById('tb-overflow-menu');
-  if (existing) { existing.remove(); return; }
+  if (existing) { existing.remove(); document.getElementById('tb-overflow-backdrop').remove(); window.myApps.send('ui:modal-open', false); return; }
   const link = getLink(id);
   const rect = anchor.getBoundingClientRect();
+  const backdrop = document.createElement('div');
+  backdrop.id = 'tb-overflow-backdrop';
+  backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:119;';
   const menu = document.createElement('div');
   menu.id = 'tb-overflow-menu';
   menu.style.cssText = `position:fixed;top:${rect.bottom + 4}px;right:12px;background:var(--bg-elevated);
@@ -75,18 +78,25 @@ function openOverflowMenu(anchor) {
     ['Edit…', () => openLinkDialog(link)],
   ];
   menu.innerHTML = items.map(([label], i) => `<div class="menu-item" data-i="${i}" style="padding:7px 10px;border-radius:6px;cursor:pointer;font-size:12.5px;">${label}</div>`).join('');
+  window.myApps.send('ui:modal-open', true);
+  const closeMenu = () => {
+    menu.remove();
+    backdrop.remove();
+    window.myApps.send('ui:modal-open', false);
+  };
   menu.querySelectorAll('.menu-item').forEach((el) => {
     el.addEventListener('mouseenter', () => { el.style.background = 'var(--bg-hover)'; });
     el.addEventListener('mouseleave', () => { el.style.background = ''; });
     el.addEventListener('click', () => {
       items[Number(el.dataset.i)][1]();
-      menu.remove();
+      closeMenu();
     });
   });
+  document.body.appendChild(backdrop);
   document.body.appendChild(menu);
   setTimeout(() => {
     document.addEventListener('click', function onDocClick(ev) {
-      if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', onDocClick); }
+      if (!menu.contains(ev.target)) { closeMenu(); document.removeEventListener('click', onDocClick); }
     });
   }, 0);
 }

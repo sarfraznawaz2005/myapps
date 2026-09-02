@@ -19,6 +19,8 @@ const btnEmptyAdd = document.getElementById('btn-empty-add');
 
 let filterText = '';
 let dragging = null; // { type: 'link'|'group', id }
+let ungroupedCollapsed = false;
+const UNGROUPED_ID = '__ungrouped__';
 
 function iconHtml(name) { return icons[name] || ''; }
 
@@ -98,11 +100,26 @@ function groupHtml(group) {
   const collapsed = group.collapsed ? ' collapsed' : '';
   const agg = groupAggregate(group.id);
   const countLabel = `${links.length} link${links.length === 1 ? '' : 's'}`;
-  return `<div class="group" data-group-id="${group.id}">
-    <div class="group-header${collapsed}" data-group-id="${group.id}" title="${escapeAttr(group.name)} — ${escapeAttr(countLabel)}">
+  const hasColor = group.color ? ' has-color' : '';
+  const colorStyle = group.color ? ` style="--grp-color:${escapeAttr(group.color)}"` : '';
+  return `<div class="group${hasColor}" data-group-id="${group.id}"${colorStyle}>
+    <div class="group-header${collapsed}${hasColor}" data-group-id="${group.id}" title="${escapeAttr(group.name)} — ${escapeAttr(countLabel)}">
       <span class="chevron">${iconHtml('chevron')}</span>
       <span class="name">${group.name}</span>
       <span class="pill${agg ? ' has-count' : ''}">${agg}</span>
+    </div>
+    <div class="group-body${collapsed}">${links.map(linkRowHtml).join('')}</div>
+  </div>`;
+}
+
+function ungroupedGroupHtml(links) {
+  const collapsed = ungroupedCollapsed ? ' collapsed' : '';
+  const countLabel = `${links.length} link${links.length === 1 ? '' : 's'}`;
+  return `<div class="group" data-group-id="${UNGROUPED_ID}">
+    <div class="group-header${collapsed}" data-group-id="${UNGROUPED_ID}" title="Ungrouped — ${escapeAttr(countLabel)}">
+      <span class="chevron">${iconHtml('chevron')}</span>
+      <span class="name">Ungrouped</span>
+      <span class="pill"></span>
     </div>
     <div class="group-body${collapsed}">${links.map(linkRowHtml).join('')}</div>
   </div>`;
@@ -116,7 +133,7 @@ export function renderList() {
     .sort((a, b) => a.order - b.order);
 
   let html = groups.map(groupHtml).join('');
-  html += ungrouped.map(linkRowHtml).join('');
+  if (ungrouped.length > 0) html += ungroupedGroupHtml(ungrouped);
   listEl.innerHTML = html;
 
   document.getElementById('content-empty').style.display = state.links.length === 0 ? 'flex' : 'none';
@@ -158,11 +175,17 @@ function wireRowEvents() {
   listEl.querySelectorAll('.group-header').forEach((el) => {
     el.addEventListener('click', () => {
       const gid = el.dataset.groupId;
+      if (gid === UNGROUPED_ID) {
+        ungroupedCollapsed = !ungroupedCollapsed;
+        renderList();
+        return;
+      }
       const group = getGroup(gid);
       window.myApps.invoke('group:update', gid, { collapsed: !group.collapsed });
     });
     el.addEventListener('contextmenu', (e) => {
       e.preventDefault();
+      if (el.dataset.groupId === UNGROUPED_ID) return;
       openGroupDialog(getGroup(el.dataset.groupId));
     });
     el.addEventListener('dragover', (e) => {
@@ -172,7 +195,10 @@ function wireRowEvents() {
     el.addEventListener('drop', (e) => {
       e.preventDefault();
       el.classList.remove('dragover');
-      if (dragging && dragging.type === 'link') moveLinkToGroup(dragging.id, el.dataset.groupId, 0);
+      if (dragging && dragging.type === 'link') {
+        const gid = el.dataset.groupId === UNGROUPED_ID ? null : el.dataset.groupId;
+        moveLinkToGroup(dragging.id, gid, 0);
+      }
     });
   });
 

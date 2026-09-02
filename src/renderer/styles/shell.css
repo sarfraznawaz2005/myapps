@@ -85,12 +85,15 @@
   text-transform: uppercase;
   color: var(--text-faint);
   cursor: pointer;
-  border-radius: var(--radius-row);
+  border-radius: 0;
   margin-top: 4px;
 }
 .group-header:hover { background: var(--bg-hover); color: var(--text-dim); }
-.group-header .chevron { transition: transform var(--motion-fast); flex-shrink: 0; }
-.group-header.collapsed .chevron { transform: rotate(-90deg); }
+.group.has-color .group-header { background: color-mix(in srgb, var(--grp-color) 14%, var(--bg-sidebar)); }
+.group.has-color .group-header:hover { background: color-mix(in srgb, var(--grp-color) 24%, var(--bg-sidebar)); }
+.group.has-color .group-header .name { color: color-mix(in srgb, var(--grp-color) 70%, var(--text)); }
+.group-header .chevron { transition: transform var(--motion-fast); flex-shrink: 0; transform: rotate(90deg); }
+.group-header.collapsed .chevron { transform: rotate(0deg); }
 .group-header .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .group-header .pill { display: none; }
 .group-header.collapsed .pill.has-count { display: inline-flex; }
@@ -104,21 +107,24 @@
   gap: 8px;
   height: 32px;
   padding: 0 8px 0 6px;
-  border-radius: var(--radius-row);
+  border-radius: 0;
   position: relative;
   cursor: pointer;
   color: var(--text-dim);
 }
 .link-row:hover { background: var(--bg-hover); color: var(--text); }
 .link-row.active { background: var(--bg-active); color: var(--text); }
+.group.has-color .link-row { background: color-mix(in srgb, var(--grp-color) 7%, var(--bg-sidebar)); }
+.group.has-color .link-row:hover { background: color-mix(in srgb, var(--grp-color) 16%, var(--bg-hover)); }
+.group.has-color .link-row.active { background: color-mix(in srgb, var(--grp-color) 22%, var(--bg-active)); }
 .link-row.active::before {
   content: '';
   position: absolute;
-  left: -6px;
-  top: 4px;
-  bottom: 4px;
+  right: 0;
+  top: 0;
+  bottom: 0;
   width: 3px;
-  border-radius: 2px;
+  border-radius: 0;
   background: var(--accent);
 }
 .link-row.dragover-top { box-shadow: inset 0 2px 0 var(--accent); }

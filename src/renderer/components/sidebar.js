@@ -257,7 +257,7 @@ function initResizer() {
   });
   window.addEventListener('mousemove', (e) => {
     if (!resizing) return;
-    const w = Math.max(180, Math.min(420, startW + (e.clientX - startX)));
+    const w = Math.max(130, Math.min(420, startW + (e.clientX - startX)));
     setState({ ui: { ...getState().ui, sidebarWidth: w } });
     applySidebarWidth();
   });

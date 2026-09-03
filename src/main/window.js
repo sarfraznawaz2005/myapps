@@ -46,8 +46,12 @@ function createMainWindow({ store, startHidden }) {
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
 
   mainWindow.once('ready-to-show', () => {
-    if (ui.window.maximized) mainWindow.maximize();
+    // maximize() forces a hidden window onto the screen on Windows, even
+    // without calling show() — so it must only run when we're actually
+    // showing the window. showAppWindow() re-applies maximize when the
+    // window is later brought back from tray/hidden start.
     if (!startHidden && !store.getState().settings.startMinimized) {
+      if (ui.window.maximized) mainWindow.maximize();
       mainWindow.show();
     }
   });

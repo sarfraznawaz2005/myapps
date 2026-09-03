@@ -57,9 +57,17 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
 
 $tag = "v$Version"
 
-$existingTag = git tag --list $tag
-if ($existingTag) {
-    Fail "Tag $tag already exists."
+$existingLocalTag = git tag --list $tag
+if ($existingLocalTag) {
+    Write-Host "Tag $tag already exists locally. Deleting it..." -ForegroundColor Yellow
+    git tag -d $tag | Out-Null
+}
+
+$existingRemoteTag = git ls-remote --tags origin "refs/tags/$tag"
+if ($existingRemoteTag) {
+    Write-Host "Tag $tag already exists on origin. Deleting it there too..." -ForegroundColor Yellow
+    git push origin ":refs/tags/$tag"
+    if ($LASTEXITCODE -ne 0) { Fail "Could not delete existing remote tag $tag." }
 }
 
 # 4. Install deps if needed

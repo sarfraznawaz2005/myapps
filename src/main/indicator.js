@@ -5,8 +5,13 @@ const { app, nativeImage } = require('electron');
 
 const ASSETS = path.join(__dirname, '..', '..', 'assets');
 
-function overlayImagePath(aggregate) {
-  if (aggregate === '•') return path.join(ASSETS, 'overlay', 'dot.png');
+function overlayImagePath(aggregate, style) {
+  if (!aggregate) return null;
+  // 'dot' forces a plain dot even when a real count is known (some users
+  // don't want an exact number visible on the taskbar). 'digit' shows the
+  // real number when we have one, and falls back to a dot when we don't
+  // (aggregate === '•' means "activity, but no count available").
+  if (aggregate === '•' || style === 'dot') return path.join(ASSETS, 'overlay', 'dot.png');
   if (typeof aggregate === 'number' && aggregate > 0) {
     const n = aggregate > 9 ? '9plus' : String(aggregate);
     return path.join(ASSETS, 'overlay', `${n}.png`);
@@ -62,7 +67,7 @@ class Indicator {
 
     if (mainWindow && !mainWindow.isDestroyed() && process.platform === 'win32') {
       if (settings.showOverlayIcon) {
-        const imgPath = overlayImagePath(aggregate);
+        const imgPath = overlayImagePath(aggregate, settings.overlayStyle);
         if (imgPath) {
           const img = nativeImage.createFromPath(imgPath);
           mainWindow.setOverlayIcon(img, typeof aggregate === 'number' ? `${aggregate} unread` : 'New activity');

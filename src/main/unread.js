@@ -34,8 +34,9 @@ class UnreadTracker {
       this.map.set(linkId, {
         expert: { seen: false, count: null, activity: false },
         badge: { seen: false, count: null },
-        title: { seen: false, count: null },
+        title: { seen: false, count: null, matchedOnce: false },
         favicon: { seen: false, activity: false },
+        notified: false,
         stale: false,
         lastLoadTs: Date.now(),
       });
@@ -94,15 +95,22 @@ class UnreadTracker {
       ? [new RegExp(link.unread.title.regex)]
       : TITLE_UNREAD_PATTERNS;
     let count = null;
+    let matched = false;
     for (const re of patterns) {
       const m = String(title || '').match(re);
-      if (m && m[1] !== undefined) { count = parseInt(m[1], 10); break; }
+      if (m && m[1] !== undefined) { count = parseInt(m[1], 10); matched = true; break; }
     }
     // Update on every title change, including when the count disappears
     // (read) — a title.seen guard that only fired on a match left old
     // counts stuck forever once the page's title went back to normal.
     s.title.seen = true;
     s.title.count = count;
+    // Only latch title as the winning source once it has actually matched a
+    // pattern at least once. Without this, services whose title never
+    // contains a count (e.g. Gmail) would flip title.seen on the very first
+    // (non-matching) title change and permanently block the favicon signal
+    // below it in the precedence chain, per link, for the rest of the session.
+    if (matched) s.title.matchedOnce = true;
     this._emit(linkId);
   }
 
@@ -122,6 +130,26 @@ class UnreadTracker {
     }
   }
 
+  // A real page/service-worker notification is strong direct evidence that
+  // something new arrived, even for services this app has no count/DOM
+  // signal configured for. Lowest precedence: any real signal above it wins.
+  reportNotified(linkId) {
+    const link = this._linkConfig(linkId);
+    if (!link || !link.unread.enabled) return;
+    const s = this._ensure(linkId);
+    s.notified = true;
+    this._emit(linkId);
+  }
+
+  // Called when the user actually opens/focuses the link — treat that as
+  // "seen it", same as clicking into an inbox clears its dot.
+  clearNotified(linkId) {
+    const s = this.map.get(linkId);
+    if (!s || !s.notified) return;
+    s.notified = false;
+    this._emit(linkId);
+  }
+
   // Effective, precedence-resolved unread state for a link.
   get(linkId) {
     const link = this._linkConfig(linkId);
@@ -134,10 +162,12 @@ class UnreadTracker {
       result = { count: s.expert.count, activity: s.expert.activity, source: 'expert' };
     } else if (s.badge.seen) {
       result = { count: s.badge.count, activity: s.badge.count === null ? true : s.badge.count > 0, source: 'badge' };
-    } else if (s.title.seen) {
+    } else if (s.title.matchedOnce) {
       result = { count: s.title.count, activity: (s.title.count || 0) > 0, source: 'title' };
     } else if (s.favicon.seen) {
       result = { count: null, activity: s.favicon.activity, source: 'favicon' };
+    } else if (s.notified) {
+      result = { count: null, activity: true, source: 'notified' };
     } else {
       result = { count: null, activity: false, source: null };
     }

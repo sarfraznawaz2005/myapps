@@ -149,6 +149,16 @@ if (!gotLock) {
 
     mainWindow.on('show', () => hibernationController.onWindowShow());
 
+    // A notification-based dot (see unreadTracker.reportNotified) only ever
+    // clears on an explicit tab switch. If the user was already sitting on
+    // that tab when the notification landed, switching tabs never happens —
+    // so also clear it whenever the window comes back into focus while that
+    // link is still the active one.
+    mainWindow.on('focus', () => {
+      const activeId = viewManager.getActiveId();
+      if (activeId) unreadTracker.clearNotified(activeId);
+    });
+
     attachShortcuts(mainWindow.webContents, { store, viewManager, mainWindow });
     viewManager.on('loaded', (id) => {
       const view = viewManager.getView(id);

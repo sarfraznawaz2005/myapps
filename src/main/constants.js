@@ -88,6 +88,10 @@ const TITLE_UNREAD_PATTERNS = [
   /^\((\d+)\)/,
   /\((\d+)\)\s*$/,
   /^(\d+)\s*[·•-]/,
+  // Catch-all: a parenthesized number anywhere in the title. Needed for
+  // titles like Gmail's "Inbox (3) - user@gmail.com - Gmail", where the
+  // count sits mid-string and none of the anchored patterns above match.
+  /\((\d+)\)/,
 ];
 
 const FAVICON_UNREAD_KEYWORDS = /unread|unseen|alert|new/i;

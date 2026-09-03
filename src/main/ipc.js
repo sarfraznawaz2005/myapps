@@ -145,7 +145,12 @@ function initIpc(ctx) {
 
   ipcMain.on(CH.LINK_BADGE, (_event, linkId, count) => unreadTracker.reportBadge(linkId, count));
   ipcMain.on(CH.LINK_EXPERT, (_event, linkId, payload) => unreadTracker.reportExpert(linkId, payload || {}));
-  ipcMain.on(CH.LINK_NOTIFICATION, (_event, linkId, payload) => notifications.handlePageNotification(linkId, payload || {}));
+  ipcMain.on(CH.LINK_NOTIFICATION, (_event, linkId, payload) => {
+    // A real notification is proof of new activity on its own — light up the
+    // sidebar/tray/taskbar even for services with no count/DOM signal wired up.
+    unreadTracker.reportNotified(linkId);
+    notifications.handlePageNotification(linkId, payload || {});
+  });
   ipcMain.on(CH.LINK_PICKED_ELEMENT, (_event, linkId, payload) => {
     sendToShell(ctx, CH.SHELL_OPEN_DIALOG, { type: 'picked-element', linkId, ...payload });
   });
@@ -188,7 +193,10 @@ function initIpc(ctx) {
 
   ipcMain.handle(CH.LINK_REORDER, (_event, orderedIds, groupId) => store.reorderLinks(orderedIds, groupId));
 
-  ipcMain.handle(CH.LINK_ACTIVATE, (_event, id) => viewManager.activate(id));
+  ipcMain.handle(CH.LINK_ACTIVATE, (_event, id) => {
+    unreadTracker.clearNotified(id);
+    return viewManager.activate(id);
+  });
 
   ipcMain.handle(CH.LINK_HIBERNATE, (_event, id) => viewManager.hibernate(id));
 

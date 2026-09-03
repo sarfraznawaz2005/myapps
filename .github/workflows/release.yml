@@ -27,7 +27,7 @@ jobs:
         run: npm run make-icons
 
       - name: Build (Setup + portable zip)
-        run: npm run dist
+        run: npm run dist -- --publish never
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

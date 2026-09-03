@@ -18,6 +18,7 @@ if (linkId) {
     reportExpert: (payload) => ipcRenderer.send('link:expert', linkId, payload),
     notify: (payload) => ipcRenderer.send('link:notification', linkId, payload),
     pickedElement: (payload) => ipcRenderer.send('link:picked-element', linkId, payload),
+    getLocation: () => ipcRenderer.invoke('link:get-location', linkId),
     onNotifClick: (cb) => ipcRenderer.on(`link:notif-click:${linkId}`, (_e, notificationId) => cb(notificationId)),
     onConfigUpdate: (cb) => ipcRenderer.on('link:config', (_e, cfg) => cb(cfg)),
     onStartPicker: (cb) => ipcRenderer.on('link:start-picker', () => cb()),

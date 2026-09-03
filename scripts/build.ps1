@@ -7,7 +7,7 @@ if (-not (Test-Path "node_modules")) {
 }
 
 node scripts/make-icons.js
-npm run dist
+npx electron-builder --win dir
 
 Write-Host ""
 Write-Host "Done. The app is in 'dist\win-unpacked\My Apps.exe'."

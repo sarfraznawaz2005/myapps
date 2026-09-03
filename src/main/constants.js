@@ -71,6 +71,7 @@ const CH = {
   LINK_EXPERT: 'link:expert',
   LINK_NOTIFICATION: 'link:notification',
   LINK_PICKED_ELEMENT: 'link:picked-element',
+  LINK_GET_LOCATION: 'link:get-location',
 
   // Main -> link preload
   LINK_CONFIG: 'link:config',

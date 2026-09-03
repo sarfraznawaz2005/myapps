@@ -10,6 +10,7 @@ const favicon = require('./favicon');
 const autolaunch = require('./autolaunch');
 const shortcuts = require('./shortcuts');
 const hibernationMod = require('./hibernation');
+const geolocation = require('./geolocation');
 
 const INJECTED_SOURCE = fs.readFileSync(
   path.join(__dirname, '..', '..', 'preload', 'inject-main-world.js'),
@@ -153,6 +154,22 @@ function initIpc(ctx) {
   });
   ipcMain.on(CH.LINK_PICKED_ELEMENT, (_event, linkId, payload) => {
     sendToShell(ctx, CH.SHELL_OPEN_DIALOG, { type: 'picked-element', linkId, ...payload });
+  });
+
+  // Gate stays here rather than in navigator.geolocation itself, so a link
+  // with "Allow location" off gets the same PERMISSION_DENIED (code 1) a
+  // real browser would give, without ever shelling out to Windows.
+  ipcMain.handle(CH.LINK_GET_LOCATION, async (_event, linkId) => {
+    const link = store.getState().links.find((l) => l.id === linkId);
+    if (!link || !link.navigation || !link.navigation.allowLocation) {
+      return { ok: false, code: 1, message: 'Location is not enabled for this link.' };
+    }
+    try {
+      const coords = await geolocation.getWindowsLocation();
+      return { ok: true, coords };
+    } catch (e) {
+      return { ok: false, code: e.code || 2, message: e.message || 'Position unavailable.' };
+    }
   });
 
   // ---- shell -> main: invoke ----

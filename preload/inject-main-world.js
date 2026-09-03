@@ -94,6 +94,62 @@
   }
 
   // ---------------------------------------------------------------------
+  // Geolocation patch — Chromium's built-in getCurrentPosition/watchPosition
+  // ask Google's network location webservice, which needs a paid API key we
+  // don't have and fails with a 403 without one. Ask Windows instead (main
+  // process reads it via GeoCoordinateWatcher, the same OS location stack
+  // Edge/WebView2 use) and shape the result like the real Geolocation API.
+  // ---------------------------------------------------------------------
+  function makePositionError(code, message) {
+    return { code: code, message: message, PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 };
+  }
+
+  function fetchPosition(success, error) {
+    bridge.getLocation().then(function (res) {
+      if (!res || !res.ok) {
+        if (typeof error === 'function') error(makePositionError((res && res.code) || 2, (res && res.message) || 'Position unavailable.'));
+        return;
+      }
+      var c = res.coords;
+      if (typeof success === 'function') {
+        success({
+          coords: {
+            latitude: c.latitude,
+            longitude: c.longitude,
+            accuracy: c.accuracy || 50,
+            altitude: null,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: null,
+          },
+          timestamp: Date.now(),
+        });
+      }
+    }).catch(function () {
+      if (typeof error === 'function') error(makePositionError(2, 'Position unavailable.'));
+    });
+  }
+
+  try {
+    if (navigator.geolocation) {
+      var watchTimers = {};
+      var watchSeq = 0;
+      navigator.geolocation.getCurrentPosition = function (success, error) {
+        fetchPosition(success, error);
+      };
+      navigator.geolocation.watchPosition = function (success, error) {
+        var id = ++watchSeq;
+        fetchPosition(success, error);
+        watchTimers[id] = setInterval(function () { fetchPosition(success, error); }, 30000);
+        return id;
+      };
+      navigator.geolocation.clearWatch = function (id) {
+        if (watchTimers[id]) { clearInterval(watchTimers[id]); delete watchTimers[id]; }
+      };
+    }
+  } catch (e) { /* some pages freeze navigator; ignore */ }
+
+  // ---------------------------------------------------------------------
   // Expert rule engine
   // ---------------------------------------------------------------------
   var expertObserver = null;

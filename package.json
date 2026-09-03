@@ -1,7 +1,7 @@
 {
   "name": "myapps",
   "version": "1.0.1",
-  "description": "My Apps — a lightweight multi-service desktop wrapper",
+  "description": "My Apps",
   "main": "main.js",
   "private": true,
   "license": "MIT",

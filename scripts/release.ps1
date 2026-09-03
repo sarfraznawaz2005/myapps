@@ -104,10 +104,16 @@ Write-Host "Build succeeded." -ForegroundColor Green
 # 6. Bump version in package.json (writes package.json + package-lock.json)
 Run "npm" @("version", $Version, "--no-git-tag-version", "--allow-same-version") "Set version to $Version"
 
-# 7. Commit the version bump
+# 7. Commit the version bump, if there is anything to commit
 git add package.json package-lock.json
-git commit -m "chore: release $tag"
-if ($LASTEXITCODE -ne 0) { Fail "git commit failed." }
+git diff --cached --quiet
+$hasChanges = ($LASTEXITCODE -ne 0)
+if ($hasChanges) {
+    git commit -m "chore: release $tag"
+    if ($LASTEXITCODE -ne 0) { Fail "git commit failed." }
+} else {
+    Write-Host "Version already set to $Version. Nothing to commit." -ForegroundColor Yellow
+}
 
 # 8. Create the tag
 git tag -a $tag -m "Release $tag"
@@ -117,7 +123,7 @@ if ($LASTEXITCODE -ne 0) { Fail "git tag failed." }
 git push origin $branch
 if ($LASTEXITCODE -ne 0) {
     git tag -d $tag | Out-Null
-    git reset --soft HEAD~1 | Out-Null
+    if ($hasChanges) { git reset --soft HEAD~1 | Out-Null }
     Fail "git push of branch '$branch' failed. Local commit and tag were rolled back."
 }
 

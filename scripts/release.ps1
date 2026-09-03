@@ -12,9 +12,9 @@ function Fail($msg) {
     exit 1
 }
 
-function Run($cmd, $args, $step) {
+function Run($cmd, $cmdArgs, $step) {
     Write-Host "-> $step"
-    & $cmd @args
+    & $cmd @cmdArgs
     if ($LASTEXITCODE -ne 0) {
         Fail "$step failed (exit code $LASTEXITCODE)."
     }

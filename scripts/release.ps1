@@ -69,7 +69,25 @@ if (-not (Test-Path "node_modules")) {
 
 # 5. Build locally first, as a pre-flight check. If this fails, nothing else happens.
 Run "node" @("scripts/make-icons.js") "Generate icons"
-Run "npm" @("run", "dist") "Build app (pre-flight check)"
+
+$nsisCache = Join-Path $env:LOCALAPPDATA "electron-builder\Cache\nsis"
+$buildAttempt = 1
+while ($true) {
+    Write-Host "-> Build app (pre-flight check)"
+    $lines = & npm run dist 2>&1 | Tee-Object -Variable lines
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -eq 0) { break }
+
+    $text = $lines -join "`n"
+    $isBrokenNsisCache = $text -match 'elevate\.exe' -or $text -match 'nsis-\d+.*ENOENT'
+    if ($buildAttempt -eq 1 -and $isBrokenNsisCache -and (Test-Path $nsisCache)) {
+        Write-Host "Detected a broken nsis download cache. Deleting it and retrying..." -ForegroundColor Yellow
+        Remove-Item -Recurse -Force $nsisCache
+        $buildAttempt++
+        continue
+    }
+    Fail "Build app (pre-flight check) failed (exit code $exitCode)."
+}
 
 Write-Host "Build succeeded." -ForegroundColor Green
 

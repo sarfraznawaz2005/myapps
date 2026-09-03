@@ -74,8 +74,10 @@ $nsisCache = Join-Path $env:LOCALAPPDATA "electron-builder\Cache\nsis"
 $buildAttempt = 1
 while ($true) {
     Write-Host "-> Build app (pre-flight check)"
+    $ErrorActionPreference = "Continue"
     $lines = & npm run dist 2>&1 | Tee-Object -Variable lines
     $exitCode = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
     if ($exitCode -eq 0) { break }
 
     $text = $lines -join "`n"

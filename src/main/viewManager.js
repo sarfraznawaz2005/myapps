@@ -214,6 +214,12 @@ class ViewManager extends EventEmitter {
     return true;
   }
 
+  reloadAllLoaded() {
+    for (const view of this.views.values()) {
+      if (!view.webContents.isDestroyed()) view.webContents.reload();
+    }
+  }
+
   stop(id) {
     const view = this.views.get(id);
     if (view && !view.webContents.isDestroyed()) view.webContents.stop();

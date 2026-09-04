@@ -13,6 +13,7 @@ const { TrayController } = require('./src/main/tray');
 const autolaunch = require('./src/main/autolaunch');
 const { attachShortcuts } = require('./src/main/shortcuts');
 const { initIpc, recomputeAggregate } = require('./src/main/ipc');
+const { startDevReload } = require('./src/main/devReload');
 
 // Must be called before whenReady(), and must match build.appId in
 // package.json, or packaged Windows notifications show as "electron.app.Electron".
@@ -168,6 +169,8 @@ if (!gotLock) {
     if (store.getState().settings.showTrayIcon) tray.create();
 
     autolaunch.initAutoLaunchDefaultOnce(store);
+
+    startDevReload(ctx);
 
     app.on('second-instance', () => showAppWindow());
 

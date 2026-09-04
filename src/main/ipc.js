@@ -18,13 +18,28 @@ const INJECTED_SOURCE = fs.readFileSync(
   'utf8'
 );
 
-function buildLinkRuleConfig(link) {
+function buildLinkRuleConfig(link, settings) {
   return {
     expert: {
       ...link.unread.expert,
       enabled: !!(link.unread.enabled && link.unread.expert.enabled),
     },
+    scrollArrows: !!(settings && settings.scrollArrows),
   };
+}
+
+// Pushes the current config (expert rule + global toggles like scrollArrows)
+// to every link that's currently loaded — used after a global settings
+// change, since that isn't tied to any single link's update.
+function broadcastLinkConfig(ctx) {
+  const { store, viewManager } = ctx;
+  const settings = store.getState().settings;
+  for (const link of store.getState().links) {
+    const view = viewManager.getView(link.id);
+    if (view && !view.webContents.isDestroyed()) {
+      view.webContents.send(CH.LINK_CONFIG, buildLinkRuleConfig(link, settings));
+    }
+  }
 }
 
 function sendToShell(ctx, channel, payload) {
@@ -35,7 +50,7 @@ function sendToShell(ctx, channel, payload) {
 function pushLinkConfig(ctx, link) {
   const view = ctx.viewManager.getView(link.id);
   if (view && !view.webContents.isDestroyed()) {
-    view.webContents.send(CH.LINK_CONFIG, buildLinkRuleConfig(link));
+    view.webContents.send(CH.LINK_CONFIG, buildLinkRuleConfig(link, ctx.store.getState().settings));
   }
 }
 
@@ -141,7 +156,7 @@ function initIpc(ctx) {
   ipcMain.on(CH.LINK_BOOTSTRAP, (event, linkId) => {
     const link = store.getState().links.find((l) => l.id === linkId);
     event.returnValue = {
-      config: link ? buildLinkRuleConfig(link) : { expert: { enabled: false } },
+      config: link ? buildLinkRuleConfig(link, store.getState().settings) : { expert: { enabled: false }, scrollArrows: false },
       source: INJECTED_SOURCE,
     };
   });
@@ -296,6 +311,7 @@ function initIpc(ctx) {
     }
     tray.refreshMenu();
     if (Object.prototype.hasOwnProperty.call(patch, 'dnd')) recomputeAggregate(ctx);
+    if (Object.prototype.hasOwnProperty.call(patch, 'scrollArrows')) broadcastLinkConfig(ctx);
     return settings;
   });
 

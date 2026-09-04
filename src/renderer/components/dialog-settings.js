@@ -60,6 +60,10 @@ function appearanceSection(s) {
       </div>
     </div>
     <div class="settings-section">
+      <h3>Site page</h3>
+      ${checkboxRow('st-scroll-arrows', 'Show scroll up/down arrows on sites', s.scrollArrows)}
+    </div>
+    <div class="settings-section">
       <h3>Taskbar indicator</h3>
       ${checkboxRow('st-overlay', 'Show unread overlay icon', s.showOverlayIcon)}
       <div class="field">
@@ -160,6 +164,7 @@ function wireSection(s) {
     'st-notify-unfocused': ['notifyOnlyWhenUnfocused', 'checked'],
     'st-flash-taskbar': ['flashTaskbar', 'checked'],
     'st-overlay': ['showOverlayIcon', 'checked'],
+    'st-scroll-arrows': ['scrollArrows', 'checked'],
     'st-overlay-style': ['overlayStyle', 'value'],
     'st-theme': ['theme', 'value'],
     'st-default-hib': ['defaultHibernate', 'value'],

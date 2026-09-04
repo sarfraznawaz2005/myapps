@@ -24,6 +24,7 @@ function defaultSettings() {
     dnd: { enabled: false, until: null },
     theme: 'dark', // dark | light
     accent: '#3b82f6',
+    scrollArrows: false,
     defaultHibernate: 'idle', // never | idle | manual
     hibernateOnTrayMinutes: 0, // 0 = disabled
     openExternalLinksInBrowser: true,

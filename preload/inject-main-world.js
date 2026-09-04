@@ -258,6 +258,7 @@
   bridge.onConfigUpdate(function (newConfig) {
     config = newConfig || {};
     armExpertObserver();
+    updateScrollArrows();
   });
 
   // Used by the edit dialog's "Test" button — evaluates a candidate rule
@@ -331,6 +332,92 @@
     document.addEventListener('click', onPickerClick, true);
   });
   bridge.onStopPicker(stopPicker);
+
+  // ---------------------------------------------------------------------
+  // Scroll arrows — small floating up/down buttons on every page.
+  // Lives inside a closed shadow root so the host page's CSS can never
+  // style it, and the host page's JS can never reach inside it either.
+  // ---------------------------------------------------------------------
+  var SCROLL_ARROWS_HIDE_DELAY = 1200;
+  var scrollArrowsWrap = null;
+  var scrollArrowsHideTimer = null;
+
+  function onScrollArrowsScroll() {
+    if (!scrollArrowsWrap) return;
+    scrollArrowsWrap.classList.add('visible');
+    if (scrollArrowsHideTimer) clearTimeout(scrollArrowsHideTimer);
+    scrollArrowsHideTimer = setTimeout(function () {
+      if (scrollArrowsWrap) scrollArrowsWrap.classList.remove('visible');
+    }, SCROLL_ARROWS_HIDE_DELAY);
+  }
+
+  function initScrollArrows() {
+    if (!document.body || document.getElementById('__myapps-scroll-arrows')) return;
+
+    var host = document.createElement('div');
+    host.id = '__myapps-scroll-arrows';
+    // "all: initial" blocks inherited properties (font, color, etc.) from
+    // leaking into the host element itself — the shadow root below blocks
+    // everything past that boundary.
+    host.style.cssText = 'all:initial;position:fixed;right:14px;bottom:14px;z-index:2147483647;';
+
+    var root = host.attachShadow({ mode: 'closed' });
+    var style = document.createElement('style');
+    style.textContent =
+      ':host{all:initial;}' +
+      // Hidden until the page scrolls, then fades in; fades back out after
+      // SCROLL_ARROWS_HIDE_DELAY of no further scrolling.
+      '.wrap{display:flex;flex-direction:column;gap:6px;font-family:sans-serif;' +
+      'opacity:0;pointer-events:none;transition:opacity .25s;}' +
+      '.wrap.visible{opacity:1;pointer-events:auto;}' +
+      'button{width:32px;height:32px;border-radius:50%;border:none;' +
+      'background:rgba(20,20,20,0.55);color:#fff;font-size:14px;line-height:1;' +
+      'cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4);opacity:0.55;' +
+      'transition:opacity .15s;padding:0;}' +
+      'button:hover{opacity:1;}';
+    root.appendChild(style);
+
+    var wrap = document.createElement('div');
+    wrap.className = 'wrap';
+    scrollArrowsWrap = wrap;
+    // capture:true so this also sees scroll events on inner scroll boxes
+    // (Gmail/Slack-style apps), not just the outer document.
+    document.addEventListener('scroll', onScrollArrowsScroll, true);
+
+    function makeBtn(label, onClick) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.addEventListener('click', onClick);
+      return b;
+    }
+
+    wrap.appendChild(makeBtn('▲', function () {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }));
+    wrap.appendChild(makeBtn('▼', function () {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }));
+
+    root.appendChild(wrap);
+    document.documentElement.appendChild(host);
+  }
+
+  function removeScrollArrows() {
+    document.removeEventListener('scroll', onScrollArrowsScroll, true);
+    if (scrollArrowsHideTimer) { clearTimeout(scrollArrowsHideTimer); scrollArrowsHideTimer = null; }
+    scrollArrowsWrap = null;
+    var host = document.getElementById('__myapps-scroll-arrows');
+    if (host && host.parentNode) host.parentNode.removeChild(host);
+  }
+
+  function updateScrollArrows() {
+    if (config.scrollArrows) initScrollArrows();
+    else removeScrollArrows();
+  }
+
+  if (document.body) updateScrollArrows();
+  else document.addEventListener('DOMContentLoaded', updateScrollArrows);
 
   armExpertObserver();
 })();

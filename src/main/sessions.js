@@ -37,7 +37,14 @@ function getLinkSession(link, store) {
       if (permission === 'notifications') return callback(true);
       if (permission === 'media') {
         const l = liveLink();
-        if (l.navigation.mediaDecided) return callback(!!l.navigation.allowMedia);
+        if (l.navigation.mediaDecided) {
+          const allow = !!l.navigation.allowMedia;
+          // Already decided (either via the prompt below, or preset by hand
+          // in the Edit dialog) — still toast every time a site actually
+          // uses it, not just the one-time decision, so it's never silent.
+          permissionPrompt.toast(allow ? 'success' : 'warning', `Camera & mic ${allow ? 'allowed' : 'blocked'} for ${l.name}.`);
+          return callback(allow);
+        }
         // First time this link has asked — show a real Allow/Block prompt
         // (like Chrome does) instead of silently denying, and remember the
         // answer so we never ask again for this link.
@@ -53,7 +60,15 @@ function getLinkSession(link, store) {
         });
         return;
       }
-      if (permission === 'geolocation') return callback(!!liveLink().navigation.allowLocation);
+      if (permission === 'geolocation') {
+        const l = liveLink();
+        const allow = !!l.navigation.allowLocation;
+        // Chromium's own geolocation path (e.g. a frame our JS-level shim
+        // doesn't reach) never touches ipc.js/geolocation.js, so it needs
+        // its own toast — otherwise a grant here is completely silent.
+        permissionPrompt.toast(allow ? 'success' : 'warning', `Location ${allow ? 'allowed' : 'blocked'} for ${l.name}.`);
+        return callback(allow);
+      }
       if (permission === 'midi' || permission === 'midiSysex') return callback(false);
       if (permission === 'pointerLock' || permission === 'fullscreen') return callback(true);
       return callback(false);

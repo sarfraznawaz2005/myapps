@@ -341,33 +341,40 @@
 }
 #quick-switch .result.selected { background: var(--bg-active); }
 
-/* Toasts */
+/* Toasts — the loaded site renders as a native view stacked on top of the
+   whole content area (below the toolbar, right of the sidebar), so a toast
+   positioned anywhere in that region is invisible no matter its z-index:
+   CSS stacking only applies within this page, not against that native
+   layer. The toolbar strip (fixed --toolbar-h tall, full window width) is
+   the one region the site view never covers — so the toast lives there
+   instead, floating above the toolbar's own controls. Only one shows at a
+   time (see toast.js) since there's no room to stack within that height. */
 #toast-host {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 200;
+  top: 6px;
+  right: 12px;
+  height: calc(var(--toolbar-h) - 12px);
+  z-index: 500;
 }
 .toast {
-  min-width: 240px;
-  max-width: 360px;
-  padding: 10px 12px;
+  max-width: 320px;
+  height: 100%;
+  padding: 0 12px;
   border-radius: 8px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   box-shadow: 0 8px 24px rgba(0,0,0,.35);
-  font-size: 12.5px;
+  font-size: 12px;
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   animation: toast-in var(--motion-med) both;
 }
 .toast.error { border-color: var(--danger); }
 .toast.warning { border-color: var(--warning); }
-.toast.success { border-color: var(--success); }
+.toast.success { border-color: var(--success); background: color-mix(in srgb, var(--success) 18%, var(--bg-elevated)); color: var(--success); }
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }

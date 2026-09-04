@@ -1,6 +1,7 @@
 'use strict';
 
 const { execFile } = require('child_process');
+const permissionPrompt = require('./permissionPrompt');
 
 // Electron's built-in navigator.geolocation asks Google's network location
 // webservice for a fix, which needs a paid API key we don't have (see
@@ -47,6 +48,11 @@ function getWindowsLocation() {
   }
   if (inFlight) return inFlight;
 
+  // This is the one moment a real powershell.exe process actually spawns —
+  // toast it so a slow/stuck fetch (Windows Location off, no GPS fix) is
+  // visible instead of looking like the app silently doing nothing.
+  permissionPrompt.toast('info', 'Asking Windows for your location…');
+
   inFlight = new Promise((resolve, reject) => {
     if (process.platform !== 'win32') {
       reject(Object.assign(new Error('Not supported on this OS.'), { code: 2 }));
@@ -58,11 +64,13 @@ function getWindowsLocation() {
       { timeout: 15000, windowsHide: true },
       (err, stdout) => {
         if (err) {
+          permissionPrompt.toast('warning', 'Windows could not be reached for your location.');
           reject(Object.assign(new Error('Failed to query Windows Location.'), { code: 2 }));
           return;
         }
         const line = stdout.trim();
         if (line === 'DENIED') {
+          permissionPrompt.toast('warning', 'Location is turned off in Windows Settings.');
           reject(Object.assign(new Error('Location is turned off in Windows Settings.'), { code: 1 }));
           return;
         }
@@ -70,9 +78,11 @@ function getWindowsLocation() {
           const [, lat, lon, acc] = line.split('|');
           const coords = { latitude: parseFloat(lat), longitude: parseFloat(lon), accuracy: parseFloat(acc) || 50 };
           cached = { coords, ts: Date.now() };
+          permissionPrompt.toast('success', 'Windows found your location.');
           resolve({ ...coords, fromCache: false });
           return;
         }
+        permissionPrompt.toast('warning', 'Windows could not get a location fix.');
         reject(Object.assign(new Error('Windows could not get a location fix.'), { code: 2 }));
       }
     );

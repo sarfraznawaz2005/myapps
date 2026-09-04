@@ -165,7 +165,6 @@ function initIpc(ctx) {
     const link = store.getState().links.find((l) => l.id === linkId);
     if (!link) return { ok: false, code: 2, message: 'Link not found.' };
 
-    let justDecided = false;
     if (!link.navigation.locationDecided) {
       // First time this link has asked — show a real Allow/Block prompt
       // (same as camera/mic) instead of silently denying, and remember the
@@ -177,21 +176,21 @@ function initIpc(ctx) {
           allow ? 'success' : 'warning',
           `Location ${allow ? 'allowed' : 'blocked'} for ${link.name}.`
         );
-        justDecided = true;
       }
       if (!allow) return { ok: false, code: 1, message: 'Location is not enabled for this link.' };
-    } else if (!link.navigation.allowLocation) {
-      return { ok: false, code: 1, message: 'Location is not enabled for this link.' };
+    } else {
+      // Already decided (prompt earlier, or preset by hand in the Edit
+      // dialog) — still toast every time a site actually uses it, cached
+      // fix or not, so it's never silent.
+      const allow = !!link.navigation.allowLocation;
+      permissionPrompt.toast(allow ? 'success' : 'warning', `Location ${allow ? 'allowed' : 'blocked'} for ${link.name}.`);
+      if (!allow) return { ok: false, code: 1, message: 'Location is not enabled for this link.' };
     }
 
+    // geolocation.js toasts "Asking Windows…" / "Windows found your
+    // location." itself around the actual fetch — nothing to add here.
     try {
       const { fromCache, ...coords } = await geolocation.getWindowsLocation();
-      // watchPosition re-asks every 30s; most of those hits are served from
-      // the cache, so only toast when Windows was actually queried again —
-      // and skip it altogether right after the prompt above already toasted.
-      if (!fromCache && !justDecided) {
-        sendToShell(ctx, CH.SHELL_TOAST, { type: 'success', message: `Location granted to ${link.name}.` });
-      }
       return { ok: true, coords };
     } catch (e) {
       return { ok: false, code: e.code || 2, message: e.message || 'Position unavailable.' };

@@ -44,7 +44,12 @@ class ViewManager extends EventEmitter {
     if (!link) return null;
 
     const ses = getLinkSession(link, this.store);
-    const backgroundThrottling = !(link.unread.enabled || link.notifications.enabled);
+    // "Keep awake" already exists in the Edit dialog as the user's one
+    // switch for "keep this live while I'm not looking at it" — wiring
+    // throttling to it too (instead of unread/notifications, which default
+    // true on every link) means turning it off actually lightens the tab
+    // immediately, not just after the idle-hibernate timer eventually fires.
+    const backgroundThrottling = !(link.hibernate && link.hibernate.keepAwake);
 
     view = new WebContentsView({
       webPreferences: {
@@ -263,7 +268,7 @@ class ViewManager extends EventEmitter {
     const link = this._link(id);
     const view = this.views.get(id);
     if (!link || !view) return;
-    const desiredThrottle = !(link.unread.enabled || link.notifications.enabled);
+    const desiredThrottle = !(link.hibernate && link.hibernate.keepAwake);
     try { view.webContents.setBackgroundThrottling(desiredThrottle); } catch (_e) { /* ignore */ }
     try { view.webContents.setZoomFactor(link.zoom || 1); } catch (_e) { /* ignore */ }
   }

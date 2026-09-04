@@ -8,6 +8,7 @@ let state = {
   groups: [],
   links: [],
   userscripts: [],
+  commands: [],
   unread: {}, // linkId -> { count, activity, source, stale }
   aggregate: 0,
   activeLinkId: null,

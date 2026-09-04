@@ -4,6 +4,7 @@ import { icons } from '../icons.js';
 const host = document.getElementById('dialog-host');
 let activeSection = 'general';
 let editingUserscriptId = null; // null = list view, 'new' = add form, id = edit form
+let editingCommandId = null;
 
 function close() {
   host.classList.remove('open');
@@ -154,9 +155,52 @@ function userscriptsSection(userscripts, editingId) {
   return `
     <div class="settings-section">
       <h3>Userscripts</h3>
-      <div class="hint" style="margin-bottom:8px;">Runs your own JavaScript on matching sites, once per page load. Only add scripts you trust — they run with full access to that page.</div>
+      <div class="hint" style="margin-bottom:8px;">Runs your own JavaScript on matching sites, once per page load.</div>
       ${rows}
       ${!editing ? '<button class="btn" id="us-add" style="margin-top:10px;">+ Add userscript</button>' : ''}
+    </div>
+    ${form}
+  `;
+}
+
+function commandsSection(commands, editingId) {
+  const editing = editingId !== null;
+  const editTarget = editingId && editingId !== 'new' ? commands.find((c) => c.id === editingId) : null;
+
+  const rows = commands.length ? commands.map((c) => `
+    <div class="command-row" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
+      <input type="checkbox" class="cmd-enabled" data-id="${c.id}" ${c.enabled ? 'checked' : ''} title="Enabled" />
+      <span style="flex:1;font-size:12.5px;">${escapeHtml(c.name || 'Untitled')}</span>
+      <button class="btn small cmd-edit" data-id="${c.id}">Edit</button>
+      <button class="btn small danger cmd-delete" data-id="${c.id}">Delete</button>
+    </div>
+  `).join('') : '<div class="hint">No commands yet.</div>';
+
+  const form = editing ? `
+    <div class="settings-section">
+      <h3>${editTarget ? 'Edit command' : 'New command'}</h3>
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="cmd-name" value="${escapeHtml(editTarget ? editTarget.name : '')}" />
+      </div>
+      <div class="field">
+        <label>Command</label>
+        <input type="text" id="cmd-command" value="${escapeHtml(editTarget ? editTarget.command : '')}" placeholder="mailpile --http --port 33411" />
+      </div>
+      ${checkboxRow('cmd-enabled-field', 'Enabled', editTarget ? editTarget.enabled : true)}
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn primary" id="cmd-save">Save</button>
+        <button class="btn" id="cmd-cancel">Cancel</button>
+      </div>
+    </div>
+  ` : '';
+
+  return `
+    <div class="settings-section">
+      <h3>Commands</h3>
+      <div class="hint" style="margin-bottom:8px;">Runs in the background, non-blocking, every time the app starts.</div>
+      ${rows}
+      ${!editing ? '<button class="btn" id="cmd-add" style="margin-top:10px;">+ Add command</button>' : ''}
     </div>
     ${form}
   `;
@@ -200,6 +244,7 @@ async function renderSection() {
   else if (activeSection === 'appearance') body.innerHTML = appearanceSection(s);
   else if (activeSection === 'performance') { body.innerHTML = '<div class="hint">Loading…</div>'; body.innerHTML = await performanceSection(); }
   else if (activeSection === 'userscripts') body.innerHTML = userscriptsSection(getState().userscripts || [], editingUserscriptId);
+  else if (activeSection === 'commands') body.innerHTML = commandsSection(getState().commands || [], editingCommandId);
   else if (activeSection === 'data') body.innerHTML = dataSection();
   else body.innerHTML = aboutSection();
   wireSection(s);
@@ -295,6 +340,39 @@ function wireSection(s) {
     });
   }
 
+  document.querySelectorAll('.cmd-enabled').forEach((el) => {
+    el.addEventListener('change', () => {
+      window.myApps.invoke('command:update', el.dataset.id, { enabled: el.checked });
+    });
+  });
+  document.querySelectorAll('.cmd-edit').forEach((el) => {
+    el.addEventListener('click', () => { editingCommandId = el.dataset.id; renderSection(); });
+  });
+  document.querySelectorAll('.cmd-delete').forEach((el) => {
+    el.addEventListener('click', async () => {
+      if (!confirm('Delete this command?')) return;
+      await window.myApps.invoke('command:delete', el.dataset.id);
+      renderSection();
+    });
+  });
+  const cmdAddBtn = document.getElementById('cmd-add');
+  if (cmdAddBtn) cmdAddBtn.addEventListener('click', () => { editingCommandId = 'new'; renderSection(); });
+  const cmdCancelBtn = document.getElementById('cmd-cancel');
+  if (cmdCancelBtn) cmdCancelBtn.addEventListener('click', () => { editingCommandId = null; renderSection(); });
+  const cmdSaveBtn = document.getElementById('cmd-save');
+  if (cmdSaveBtn) {
+    cmdSaveBtn.addEventListener('click', async () => {
+      const name = document.getElementById('cmd-name').value.trim() || 'Untitled';
+      const command = document.getElementById('cmd-command').value;
+      const enabled = document.getElementById('cmd-enabled-field').checked;
+      const data = { name, command, enabled };
+      if (editingCommandId === 'new') await window.myApps.invoke('command:create', data);
+      else await window.myApps.invoke('command:update', editingCommandId, data);
+      editingCommandId = null;
+      renderSection();
+    });
+  }
+
   const importBtn = document.getElementById('st-import');
   const importFile = document.getElementById('st-import-file');
   if (importBtn && importFile) {
@@ -313,6 +391,7 @@ function wireSection(s) {
 export function openSettingsDialog() {
   activeSection = 'general';
   editingUserscriptId = null;
+  editingCommandId = null;
   window.myApps.send('ui:modal-open', true);
 
   const sections = [
@@ -321,6 +400,7 @@ export function openSettingsDialog() {
     ['appearance', 'Appearance'],
     ['performance', 'Performance'],
     ['userscripts', 'Userscripts'],
+    ['commands', 'Commands'],
     ['data', 'Data'],
     ['about', 'About'],
   ];
@@ -346,6 +426,7 @@ export function openSettingsDialog() {
     el.addEventListener('click', () => {
       activeSection = el.dataset.section;
       editingUserscriptId = null;
+      editingCommandId = null;
       host.querySelectorAll('.dialog-tab').forEach((t) => t.classList.toggle('active', t === el));
       renderSection();
     });

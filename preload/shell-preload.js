@@ -12,6 +12,7 @@ const INVOKE_CHANNELS = new Set([
   'link:test-expert-rule', 'link:pick-element', 'link:probe-url',
   'group:create', 'group:update', 'group:delete', 'group:reorder',
   'userscript:create', 'userscript:update', 'userscript:delete',
+  'command:create', 'command:update', 'command:delete',
   'settings:update', 'settings:export', 'settings:import',
   'dnd:set',
   'nav:go', 'nav:navigate', 'nav:copy-url', 'nav:open-external',

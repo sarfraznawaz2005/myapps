@@ -311,6 +311,10 @@ function initIpc(ctx) {
   ipcMain.handle(CH.USERSCRIPT_UPDATE, (_event, id, patch) => store.updateUserscript(id, patch));
   ipcMain.handle(CH.USERSCRIPT_DELETE, (_event, id) => store.deleteUserscript(id));
 
+  ipcMain.handle(CH.COMMAND_CREATE, (_event, data) => store.createCommand(data));
+  ipcMain.handle(CH.COMMAND_UPDATE, (_event, id, patch) => store.updateCommand(id, patch));
+  ipcMain.handle(CH.COMMAND_DELETE, (_event, id) => store.deleteCommand(id));
+
   ipcMain.handle(CH.GROUP_CREATE, (_event, data) => store.createGroup(data));
   ipcMain.handle(CH.GROUP_UPDATE, (_event, id, patch) => store.updateGroup(id, patch));
   ipcMain.handle(CH.GROUP_DELETE, (_event, id, opts) => store.deleteGroup(id, opts));

@@ -14,6 +14,7 @@ const autolaunch = require('./src/main/autolaunch');
 const { attachShortcuts } = require('./src/main/shortcuts');
 const { initIpc, recomputeAggregate } = require('./src/main/ipc');
 const { startDevReload } = require('./src/main/devReload');
+const { runStartupCommands } = require('./src/main/startupCommands');
 
 // Must be called before whenReady(), and must match build.appId in
 // package.json, or packaged Windows notifications show as "electron.app.Electron".
@@ -75,6 +76,8 @@ if (!gotLock) {
     const store = new Store();
     store.load();
     ctx.store = store;
+
+    runStartupCommands(store);
 
     const startHidden = autolaunch.wasLaunchedHidden();
     const mainWindow = createMainWindow({ store, startHidden });

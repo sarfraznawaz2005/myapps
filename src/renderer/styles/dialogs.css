@@ -21,7 +21,7 @@
   flex-direction: column;
   animation: dialog-in var(--motion-med) both;
 }
-.dialog.wide { width: 660px; }
+.dialog.wide { width: 860px; }
 @keyframes dialog-in {
   from { opacity: 0; transform: translateY(8px) scale(.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -46,6 +46,7 @@
   gap: 4px;
   padding: 0 16px;
   border-bottom: 1px solid var(--border);
+  overflow-x: auto;
 }
 .dialog-tab {
   padding: 10px 4px;
@@ -54,6 +55,8 @@
   font-weight: 600;
   border-bottom: 2px solid transparent;
   margin-right: 16px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .dialog-tab.active { color: var(--text); border-color: var(--accent); }
 

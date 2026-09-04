@@ -54,6 +54,7 @@ function defaultState() {
     groups: [],
     links: [],
     userscripts: [],
+    commands: [],
   };
 }
 
@@ -157,6 +158,7 @@ class Store {
       parsed.groups = Array.isArray(parsed.groups) ? parsed.groups : [];
       parsed.links = Array.isArray(parsed.links) ? parsed.links.map((l) => deepMerge(defaultLinkFields(), l)) : [];
       parsed.userscripts = Array.isArray(parsed.userscripts) ? parsed.userscripts : [];
+      parsed.commands = Array.isArray(parsed.commands) ? parsed.commands : [];
       this.state = parsed;
     } catch (err) {
       // Corrupt file: preserve it for forensics, fall back to defaults.
@@ -349,6 +351,7 @@ class Store {
     parsed.groups = Array.isArray(parsed.groups) ? parsed.groups : [];
     parsed.links = Array.isArray(parsed.links) ? parsed.links.map((l) => deepMerge(defaultLinkFields(), l)) : [];
     parsed.userscripts = Array.isArray(parsed.userscripts) ? parsed.userscripts : [];
+    parsed.commands = Array.isArray(parsed.commands) ? parsed.commands : [];
     this.state = parsed;
     this.saveImmediate();
     return this.state;
@@ -386,6 +389,41 @@ class Store {
     const idx = this.state.userscripts.findIndex((u) => u.id === id);
     if (idx === -1) return null;
     const [removed] = this.state.userscripts.splice(idx, 1);
+    this.save();
+    return removed;
+  }
+
+  // ---- commands ----
+
+  createCommand(data) {
+    const id = genId();
+    const cmd = {
+      id,
+      name: ((data && data.name) || '').trim() || 'Untitled',
+      command: (data && data.command) || '',
+      enabled: data && data.enabled !== undefined ? !!data.enabled : true,
+      createdAt: Date.now(),
+    };
+    this.state.commands.push(cmd);
+    this.save();
+    return cmd;
+  }
+
+  updateCommand(id, patch) {
+    const idx = this.state.commands.findIndex((c) => c.id === id);
+    if (idx === -1) return null;
+    const existing = this.state.commands[idx];
+    const merged = { ...existing, ...patch, id };
+    if (patch && patch.name !== undefined) merged.name = (patch.name || '').trim() || existing.name;
+    this.state.commands[idx] = merged;
+    this.save();
+    return merged;
+  }
+
+  deleteCommand(id) {
+    const idx = this.state.commands.findIndex((c) => c.id === id);
+    if (idx === -1) return null;
+    const [removed] = this.state.commands.splice(idx, 1);
     this.save();
     return removed;
   }

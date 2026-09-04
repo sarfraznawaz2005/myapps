@@ -23,6 +23,7 @@ function onShellState(payload) {
     groups: payload.groups,
     links: payload.links,
     userscripts: payload.userscripts || [],
+    commands: payload.commands || [],
     unread: payload.unread || getState().unread,
     aggregate: payload.aggregate != null ? payload.aggregate : getState().aggregate,
     activeLinkId: payload.activeLinkId !== undefined ? payload.activeLinkId : getState().activeLinkId,

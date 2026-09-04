@@ -33,6 +33,10 @@ const CH = {
   USERSCRIPT_UPDATE: 'userscript:update',
   USERSCRIPT_DELETE: 'userscript:delete',
 
+  COMMAND_CREATE: 'command:create',
+  COMMAND_UPDATE: 'command:update',
+  COMMAND_DELETE: 'command:delete',
+
   GROUP_CREATE: 'group:create',
   GROUP_UPDATE: 'group:update',
   GROUP_DELETE: 'group:delete',

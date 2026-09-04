@@ -1,6 +1,6 @@
 {
   "name": "myapps",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "My Apps",
   "main": "main.js",
   "private": true,

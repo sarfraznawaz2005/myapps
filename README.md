@@ -19,6 +19,8 @@ No pre-made service templates. Every link is a URL you type in yourself.
 - **Startup commands** — run any shell command in the background when the app starts (e.g. to launch a locally-hosted service).
 - **Settings export/import** — one JSON file for links, groups, settings, userscripts, and commands.
 
+![My Apps screenshot](screenshot.png)
+
 ## Running it
 
 ```

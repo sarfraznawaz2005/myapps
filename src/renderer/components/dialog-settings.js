@@ -2,7 +2,7 @@ import { getState } from '../state.js';
 import { icons } from '../icons.js';
 
 const host = document.getElementById('dialog-host');
-let activeSection = 'general';
+let activeSection = 'links';
 let editingUserscriptId = null; // null = list view, 'new' = add form, id = edit form
 let editingCommandId = null;
 
@@ -18,6 +18,61 @@ function checkboxRow(id, label, checked) {
 
 function escapeHtml(str) {
   return String(str || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function linkRowMarkup(l) {
+  return `
+    <div class="settings-link-row" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
+      <input type="checkbox" class="link-enabled" data-id="${l.id}" ${l.enabled ? 'checked' : ''} title="Enabled" />
+      <span style="flex:1;font-size:12.5px;${l.enabled ? '' : 'color:var(--text-dim);'}">${escapeHtml(l.name)}</span>
+    </div>
+  `;
+}
+
+function linksSection(links, groups) {
+  const sortedGroups = groups.slice().sort((a, b) => a.order - b.order);
+  const inGroupOrder = (gid) => links
+    .filter((l) => (l.groupId || null) === gid && l.enabled)
+    .sort((a, b) => a.order - b.order);
+
+  const groupBlocks = sortedGroups.map((g) => {
+    const glinks = inGroupOrder(g.id);
+    if (!glinks.length) return '';
+    return `
+      <div class="settings-group-block" style="margin-bottom:10px;">
+        <div class="hint" style="font-weight:600;margin:8px 0 4px;">${escapeHtml(g.name)}</div>
+        ${glinks.map(linkRowMarkup).join('')}
+      </div>
+    `;
+  }).join('');
+
+  const ungrouped = inGroupOrder(null);
+  const ungroupedBlock = ungrouped.length ? `
+    <div class="settings-group-block" style="margin-bottom:10px;">
+      <div class="hint" style="font-weight:600;margin:8px 0 4px;">Ungrouped</div>
+      ${ungrouped.map(linkRowMarkup).join('')}
+    </div>
+  ` : '';
+
+  // Unloaded links show last, out of their original group, so they're all
+  // in one place instead of scattered wherever they used to live.
+  const unloaded = links.filter((l) => !l.enabled).sort((a, b) => a.name.localeCompare(b.name));
+  const unloadedBlock = unloaded.length ? `
+    <div class="settings-group-block" style="margin-top:14px;">
+      <div class="hint" style="font-weight:600;margin:8px 0 4px;">Unloaded</div>
+      ${unloaded.map(linkRowMarkup).join('')}
+    </div>
+  ` : '';
+
+  const empty = links.length ? '' : '<div class="hint">No links added yet.</div>';
+
+  return `
+    <div class="settings-section">
+      <h3>Links</h3>
+      <div class="hint" style="margin-bottom:8px;">Uncheck a link to unload it. An unloaded link disappears from the sidebar and never loads, so it uses no memory. Re-check it any time to bring it back.</div>
+      ${empty}${groupBlocks}${ungroupedBlock}${unloadedBlock}
+    </div>
+  `;
 }
 
 function generalSection(s) {
@@ -260,7 +315,8 @@ async function aboutSection() {
 async function renderSection() {
   const s = getState().settings;
   const body = host.querySelector('.dialog-body');
-  if (activeSection === 'general') body.innerHTML = generalSection(s);
+  if (activeSection === 'links') body.innerHTML = linksSection(getState().links || [], getState().groups || []);
+  else if (activeSection === 'general') body.innerHTML = generalSection(s);
   else if (activeSection === 'notifications') body.innerHTML = notificationsSection(s);
   else if (activeSection === 'appearance') body.innerHTML = appearanceSection(s);
   else if (activeSection === 'performance') { body.innerHTML = '<div class="hint">Loading…</div>'; body.innerHTML = await performanceSection(); }
@@ -327,6 +383,12 @@ function wireSection(s) {
       URL.revokeObjectURL(url);
     });
   }
+  document.querySelectorAll('.link-enabled').forEach((el) => {
+    el.addEventListener('change', async () => {
+      await window.myApps.invoke('link:update', el.dataset.id, { enabled: el.checked });
+      if (activeSection === 'links') renderSection();
+    });
+  });
   document.querySelectorAll('.us-enabled').forEach((el) => {
     el.addEventListener('change', () => {
       window.myApps.invoke('userscript:update', el.dataset.id, { enabled: el.checked });
@@ -415,12 +477,13 @@ function wireSection(s) {
 }
 
 export function openSettingsDialog() {
-  activeSection = 'general';
+  activeSection = 'links';
   editingUserscriptId = null;
   editingCommandId = null;
   window.myApps.send('ui:modal-open', true);
 
   const sections = [
+    ['links', 'Links'],
     ['general', 'General'],
     ['notifications', 'Notifications'],
     ['appearance', 'Appearance'],
@@ -438,7 +501,7 @@ export function openSettingsDialog() {
         <button class="dialog-close">${icons.x}</button>
       </div>
       <div class="dialog-tabs">
-        ${sections.map(([id, label]) => `<div class="dialog-tab${id === 'general' ? ' active' : ''}" data-section="${id}">${label}</div>`).join('')}
+        ${sections.map(([id, label]) => `<div class="dialog-tab${id === 'links' ? ' active' : ''}" data-section="${id}">${label}</div>`).join('')}
       </div>
       <div class="dialog-body"></div>
       <div class="dialog-footer">

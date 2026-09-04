@@ -34,6 +34,19 @@ function showLinkContextMenu({ linkId, store, viewManager, mainWindow, sendToShe
       click: () => (loaded ? viewManager.hibernate(linkId) : viewManager.activate(linkId)),
     },
     { label: link.muted ? 'Unmute' : 'Mute', click: () => store.updateLink(linkId, { muted: !link.muted }) },
+    {
+      label: 'Unload',
+      click: () => {
+        const wasActive = viewManager.getActiveId() === linkId;
+        store.updateLink(linkId, { enabled: false });
+        if (viewManager.isLoaded(linkId)) viewManager.hibernate(linkId);
+        if (wasActive) {
+          const { getFlattenedLinkOrder } = require('./shortcuts');
+          const order = getFlattenedLinkOrder(store);
+          if (order[0]) viewManager.activate(order[0]);
+        }
+      },
+    },
     { type: 'separator' },
     { label: 'Open in browser', click: () => shell.openExternal(link.url) },
     { label: 'Copy URL', click: () => clipboard.writeText(link.url) },

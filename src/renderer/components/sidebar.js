@@ -94,7 +94,7 @@ function linkRowHtml(link) {
 function groupHtml(group) {
   const state = getState();
   const links = state.links
-    .filter((l) => (l.groupId || null) === group.id)
+    .filter((l) => (l.groupId || null) === group.id && l.enabled)
     .sort((a, b) => a.order - b.order);
   const collapsed = group.collapsed ? ' collapsed' : '';
   const agg = groupAggregate(group.id);
@@ -128,14 +128,15 @@ export function renderList() {
   const state = getState();
   const groups = state.groups.slice().sort((a, b) => a.order - b.order);
   const ungrouped = state.links
-    .filter((l) => !l.groupId)
+    .filter((l) => !l.groupId && l.enabled)
     .sort((a, b) => a.order - b.order);
 
   let html = groups.map(groupHtml).join('');
   if (ungrouped.length > 0) html += ungroupedGroupHtml(ungrouped);
   listEl.innerHTML = html;
 
-  document.getElementById('content-empty').style.display = state.links.length === 0 ? 'flex' : 'none';
+  const visibleCount = state.links.filter((l) => l.enabled).length;
+  document.getElementById('content-empty').style.display = visibleCount === 0 ? 'flex' : 'none';
   wireRowEvents();
 }
 

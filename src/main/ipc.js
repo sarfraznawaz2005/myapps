@@ -261,10 +261,21 @@ function initIpc(ctx) {
   ipcMain.handle(CH.LINK_CREATE, (_event, data) => store.createLink(data));
 
   ipcMain.handle(CH.LINK_UPDATE, (_event, id, patch) => {
+    const wasActive = viewManager.getActiveId() === id;
     const link = store.updateLink(id, patch);
     if (link) {
-      viewManager.updateLinkRuntimeConfig(id);
-      pushLinkConfig(ctx, link);
+      if (patch && patch.enabled === false) {
+        // Hidden apps behave as though they don't exist — drop the live
+        // view so the memory is actually freed, not just kept off-screen.
+        if (viewManager.isLoaded(id)) viewManager.hibernate(id);
+        if (wasActive) {
+          const order = shortcuts.getFlattenedLinkOrder(store);
+          if (order[0]) viewManager.activate(order[0]);
+        }
+      } else {
+        viewManager.updateLinkRuntimeConfig(id);
+        pushLinkConfig(ctx, link);
+      }
     }
     return link;
   });
@@ -448,7 +459,7 @@ function initIpc(ctx) {
     if (toast) sendToShell(ctx, CH.SHELL_TOAST, toast);
 
     const { ui, links } = store.getState();
-    if (ui.lastActiveLinkId && links.find((l) => l.id === ui.lastActiveLinkId)) {
+    if (ui.lastActiveLinkId && links.find((l) => l.id === ui.lastActiveLinkId && l.enabled)) {
       viewManager.activate(ui.lastActiveLinkId);
     } else {
       const order = shortcuts.getFlattenedLinkOrder(store);

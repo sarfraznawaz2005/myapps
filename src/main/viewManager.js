@@ -43,6 +43,9 @@ class ViewManager extends EventEmitter {
     if (view) return view;
     const link = this._link(id);
     if (!link) return null;
+    // A disabled (hidden) link must never spin up a WebContentsView — that
+    // is the whole point of hiding it, so memory is actually freed.
+    if (!link.enabled) return null;
 
     const ses = getLinkSession(link, this.store);
     // "Keep awake" already exists in the Edit dialog as the user's one

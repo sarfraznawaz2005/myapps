@@ -142,6 +142,11 @@ class ViewManager extends EventEmitter {
     this.views.set(id, view);
     this.mainWindow.contentView.addChildView(view);
     view.setVisible(false);
+    // Starts muted — a view is only ever created hidden (activate() unmutes
+    // it right after if it's the one being switched to), so a site that
+    // autoplays audio/video (TikTok, YouTube) never gets heard before the
+    // user has actually switched to that tab.
+    wc.setAudioMuted(true);
     wc.loadURL(link.url);
     this.layout();
     this.emit('loaded', id);
@@ -154,9 +159,13 @@ class ViewManager extends EventEmitter {
     const prevId = this.activeId;
     if (prevId && prevId !== id) {
       const prevView = this.views.get(prevId);
-      if (prevView) prevView.setVisible(false);
+      if (prevView) {
+        prevView.setVisible(false);
+        if (!prevView.webContents.isDestroyed()) prevView.webContents.setAudioMuted(true);
+      }
     }
     this.activeId = id;
+    view.webContents.setAudioMuted(false);
     this._syncActiveVisibility();
     this.layout();
     this.store.updateUi({ lastActiveLinkId: id });

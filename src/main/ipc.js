@@ -18,13 +18,20 @@ const INJECTED_SOURCE = fs.readFileSync(
   'utf8'
 );
 
-function buildLinkRuleConfig(link, settings) {
+function buildLinkRuleConfig(link, settings, userscripts) {
   return {
     expert: {
       ...link.unread.expert,
       enabled: !!(link.unread.enabled && link.unread.expert.enabled),
     },
     scrollArrows: !!(settings && settings.scrollArrows),
+    // Sent as raw (matches + code), one list for every link — the page
+    // itself decides whether any pattern matches its own URL. Userscripts
+    // only run once per page load, so editing one only takes effect on the
+    // next navigation/reload, not live.
+    userscripts: (userscripts || [])
+      .filter((u) => u.enabled)
+      .map((u) => ({ name: u.name, matches: u.matches, code: u.code })),
   };
 }
 
@@ -33,11 +40,11 @@ function buildLinkRuleConfig(link, settings) {
 // change, since that isn't tied to any single link's update.
 function broadcastLinkConfig(ctx) {
   const { store, viewManager } = ctx;
-  const settings = store.getState().settings;
+  const { settings, userscripts } = store.getState();
   for (const link of store.getState().links) {
     const view = viewManager.getView(link.id);
     if (view && !view.webContents.isDestroyed()) {
-      view.webContents.send(CH.LINK_CONFIG, buildLinkRuleConfig(link, settings));
+      view.webContents.send(CH.LINK_CONFIG, buildLinkRuleConfig(link, settings, userscripts));
     }
   }
 }
@@ -50,7 +57,8 @@ function sendToShell(ctx, channel, payload) {
 function pushLinkConfig(ctx, link) {
   const view = ctx.viewManager.getView(link.id);
   if (view && !view.webContents.isDestroyed()) {
-    view.webContents.send(CH.LINK_CONFIG, buildLinkRuleConfig(link, ctx.store.getState().settings));
+    const { settings, userscripts } = ctx.store.getState();
+    view.webContents.send(CH.LINK_CONFIG, buildLinkRuleConfig(link, settings, userscripts));
   }
 }
 
@@ -155,8 +163,9 @@ function initIpc(ctx) {
   // ---- link preload -> main ----
   ipcMain.on(CH.LINK_BOOTSTRAP, (event, linkId) => {
     const link = store.getState().links.find((l) => l.id === linkId);
+    const { settings, userscripts } = store.getState();
     event.returnValue = {
-      config: link ? buildLinkRuleConfig(link, store.getState().settings) : { expert: { enabled: false }, scrollArrows: false },
+      config: link ? buildLinkRuleConfig(link, settings, userscripts) : { expert: { enabled: false }, scrollArrows: false, userscripts: [] },
       source: INJECTED_SOURCE,
     };
   });
@@ -297,6 +306,10 @@ function initIpc(ctx) {
   });
 
   ipcMain.handle(CH.LINK_PROBE_URL, (_event, url) => navigation.probeUrl(url));
+
+  ipcMain.handle(CH.USERSCRIPT_CREATE, (_event, data) => store.createUserscript(data));
+  ipcMain.handle(CH.USERSCRIPT_UPDATE, (_event, id, patch) => store.updateUserscript(id, patch));
+  ipcMain.handle(CH.USERSCRIPT_DELETE, (_event, id) => store.deleteUserscript(id));
 
   ipcMain.handle(CH.GROUP_CREATE, (_event, data) => store.createGroup(data));
   ipcMain.handle(CH.GROUP_UPDATE, (_event, id, patch) => store.updateGroup(id, patch));

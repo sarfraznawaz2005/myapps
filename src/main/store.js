@@ -53,6 +53,7 @@ function defaultState() {
     ui: defaultUi(),
     groups: [],
     links: [],
+    userscripts: [],
   };
 }
 
@@ -155,6 +156,7 @@ class Store {
       parsed.ui = deepMerge(defaultUi(), parsed.ui || {});
       parsed.groups = Array.isArray(parsed.groups) ? parsed.groups : [];
       parsed.links = Array.isArray(parsed.links) ? parsed.links.map((l) => deepMerge(defaultLinkFields(), l)) : [];
+      parsed.userscripts = Array.isArray(parsed.userscripts) ? parsed.userscripts : [];
       this.state = parsed;
     } catch (err) {
       // Corrupt file: preserve it for forensics, fall back to defaults.
@@ -346,9 +348,46 @@ class Store {
     parsed.ui = deepMerge(defaultUi(), parsed.ui || {});
     parsed.groups = Array.isArray(parsed.groups) ? parsed.groups : [];
     parsed.links = Array.isArray(parsed.links) ? parsed.links.map((l) => deepMerge(defaultLinkFields(), l)) : [];
+    parsed.userscripts = Array.isArray(parsed.userscripts) ? parsed.userscripts : [];
     this.state = parsed;
     this.saveImmediate();
     return this.state;
+  }
+
+  // ---- userscripts ----
+
+  createUserscript(data) {
+    const id = genId();
+    const script = {
+      id,
+      name: ((data && data.name) || '').trim() || 'Untitled',
+      matches: Array.isArray(data && data.matches) ? data.matches : [],
+      code: (data && data.code) || '',
+      enabled: data && data.enabled !== undefined ? !!data.enabled : true,
+      createdAt: Date.now(),
+    };
+    this.state.userscripts.push(script);
+    this.save();
+    return script;
+  }
+
+  updateUserscript(id, patch) {
+    const idx = this.state.userscripts.findIndex((u) => u.id === id);
+    if (idx === -1) return null;
+    const existing = this.state.userscripts[idx];
+    const merged = { ...existing, ...patch, id };
+    if (patch && patch.name !== undefined) merged.name = (patch.name || '').trim() || existing.name;
+    this.state.userscripts[idx] = merged;
+    this.save();
+    return merged;
+  }
+
+  deleteUserscript(id) {
+    const idx = this.state.userscripts.findIndex((u) => u.id === id);
+    if (idx === -1) return null;
+    const [removed] = this.state.userscripts.splice(idx, 1);
+    this.save();
+    return removed;
   }
 }
 

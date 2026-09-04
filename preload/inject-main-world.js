@@ -8,6 +8,14 @@
 //  - ServiceWorkerRegistration#showNotification patch (Path A, most PWAs)
 //  - the expert-rule engine (MutationObserver-driven DOM watcher)
 //  - the element picker used by the "Pick element" button in the edit dialog
+//
+// Userscripts are NOT run from here — see link-preload.js. Sites with a
+// strict Content-Security-Policy (Gmail, ChatGPT) block eval()/Function()
+// called from code already running inside the page, which is what running
+// them from here would require. link-preload.js instead gives each matching
+// userscript its own top-level webFrame.executeJavaScript() call, which
+// Electron exempts from the page's CSP (same mechanism this whole file's
+// injection already relies on).
 (function () {
   if (window.__myappsInjected) return;
   window.__myappsInjected = true;

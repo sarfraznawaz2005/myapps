@@ -3,6 +3,7 @@ import { icons } from '../icons.js';
 
 const host = document.getElementById('dialog-host');
 let activeSection = 'general';
+let editingUserscriptId = null; // null = list view, 'new' = add form, id = edit form
 
 function close() {
   host.classList.remove('open');
@@ -12,6 +13,10 @@ function close() {
 
 function checkboxRow(id, label, checked) {
   return `<div class="checkbox-row"><input type="checkbox" id="${id}" ${checked ? 'checked' : ''} /><label for="${id}">${label}</label></div>`;
+}
+
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 function generalSection(s) {
@@ -109,6 +114,54 @@ async function performanceSection() {
   `;
 }
 
+function userscriptsSection(userscripts, editingId) {
+  const editing = editingId !== null;
+  const editTarget = editingId && editingId !== 'new' ? userscripts.find((u) => u.id === editingId) : null;
+
+  const rows = userscripts.length ? userscripts.map((u) => `
+    <div class="userscript-row" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
+      <input type="checkbox" class="us-enabled" data-id="${u.id}" ${u.enabled ? 'checked' : ''} title="Enabled" />
+      <span style="flex:1;font-size:12.5px;">${escapeHtml(u.name || 'Untitled')}</span>
+      <span class="hint">${(u.matches || []).length} pattern(s)</span>
+      <button class="btn small us-edit" data-id="${u.id}">Edit</button>
+      <button class="btn small danger us-delete" data-id="${u.id}">Delete</button>
+    </div>
+  `).join('') : '<div class="hint">No userscripts yet.</div>';
+
+  const form = editing ? `
+    <div class="settings-section">
+      <h3>${editTarget ? 'Edit userscript' : 'New userscript'}</h3>
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="us-name" value="${escapeHtml(editTarget ? editTarget.name : '')}" />
+      </div>
+      <div class="field">
+        <label>Runs on (one URL pattern per line — use * as a wildcard)</label>
+        <textarea id="us-matches" rows="3" placeholder="https://mail.google.com/*">${escapeHtml(editTarget ? (editTarget.matches || []).join('\n') : '')}</textarea>
+      </div>
+      <div class="field">
+        <label>Code</label>
+        <textarea id="us-code" rows="10" spellcheck="false">${escapeHtml(editTarget ? editTarget.code : '')}</textarea>
+      </div>
+      ${checkboxRow('us-enabled-field', 'Enabled', editTarget ? editTarget.enabled : true)}
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn primary" id="us-save">Save</button>
+        <button class="btn" id="us-cancel">Cancel</button>
+      </div>
+    </div>
+  ` : '';
+
+  return `
+    <div class="settings-section">
+      <h3>Userscripts</h3>
+      <div class="hint" style="margin-bottom:8px;">Runs your own JavaScript on matching sites, once per page load. Only add scripts you trust — they run with full access to that page.</div>
+      ${rows}
+      ${!editing ? '<button class="btn" id="us-add" style="margin-top:10px;">+ Add userscript</button>' : ''}
+    </div>
+    ${form}
+  `;
+}
+
 function dataSection() {
   return `
     <div class="settings-section">
@@ -146,6 +199,7 @@ async function renderSection() {
   else if (activeSection === 'notifications') body.innerHTML = notificationsSection(s);
   else if (activeSection === 'appearance') body.innerHTML = appearanceSection(s);
   else if (activeSection === 'performance') { body.innerHTML = '<div class="hint">Loading…</div>'; body.innerHTML = await performanceSection(); }
+  else if (activeSection === 'userscripts') body.innerHTML = userscriptsSection(getState().userscripts || [], editingUserscriptId);
   else if (activeSection === 'data') body.innerHTML = dataSection();
   else body.innerHTML = aboutSection();
   wireSection(s);
@@ -207,6 +261,40 @@ function wireSection(s) {
       URL.revokeObjectURL(url);
     });
   }
+  document.querySelectorAll('.us-enabled').forEach((el) => {
+    el.addEventListener('change', () => {
+      window.myApps.invoke('userscript:update', el.dataset.id, { enabled: el.checked });
+    });
+  });
+  document.querySelectorAll('.us-edit').forEach((el) => {
+    el.addEventListener('click', () => { editingUserscriptId = el.dataset.id; renderSection(); });
+  });
+  document.querySelectorAll('.us-delete').forEach((el) => {
+    el.addEventListener('click', async () => {
+      if (!confirm('Delete this userscript?')) return;
+      await window.myApps.invoke('userscript:delete', el.dataset.id);
+      renderSection();
+    });
+  });
+  const usAddBtn = document.getElementById('us-add');
+  if (usAddBtn) usAddBtn.addEventListener('click', () => { editingUserscriptId = 'new'; renderSection(); });
+  const usCancelBtn = document.getElementById('us-cancel');
+  if (usCancelBtn) usCancelBtn.addEventListener('click', () => { editingUserscriptId = null; renderSection(); });
+  const usSaveBtn = document.getElementById('us-save');
+  if (usSaveBtn) {
+    usSaveBtn.addEventListener('click', async () => {
+      const name = document.getElementById('us-name').value.trim() || 'Untitled';
+      const matches = document.getElementById('us-matches').value.split('\n').map((m) => m.trim()).filter(Boolean);
+      const code = document.getElementById('us-code').value;
+      const enabled = document.getElementById('us-enabled-field').checked;
+      const data = { name, matches, code, enabled };
+      if (editingUserscriptId === 'new') await window.myApps.invoke('userscript:create', data);
+      else await window.myApps.invoke('userscript:update', editingUserscriptId, data);
+      editingUserscriptId = null;
+      renderSection();
+    });
+  }
+
   const importBtn = document.getElementById('st-import');
   const importFile = document.getElementById('st-import-file');
   if (importBtn && importFile) {
@@ -224,6 +312,7 @@ function wireSection(s) {
 
 export function openSettingsDialog() {
   activeSection = 'general';
+  editingUserscriptId = null;
   window.myApps.send('ui:modal-open', true);
 
   const sections = [
@@ -231,6 +320,7 @@ export function openSettingsDialog() {
     ['notifications', 'Notifications'],
     ['appearance', 'Appearance'],
     ['performance', 'Performance'],
+    ['userscripts', 'Userscripts'],
     ['data', 'Data'],
     ['about', 'About'],
   ];
@@ -255,6 +345,7 @@ export function openSettingsDialog() {
   host.querySelectorAll('.dialog-tab').forEach((el) => {
     el.addEventListener('click', () => {
       activeSection = el.dataset.section;
+      editingUserscriptId = null;
       host.querySelectorAll('.dialog-tab').forEach((t) => t.classList.toggle('active', t === el));
       renderSection();
     });

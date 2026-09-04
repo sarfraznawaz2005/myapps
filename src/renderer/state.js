@@ -7,6 +7,7 @@ let state = {
   ui: { window: {}, sidebarWidth: 240, sidebarCollapsed: false, lastActiveLinkId: null, showToolbar: true },
   groups: [],
   links: [],
+  userscripts: [],
   unread: {}, // linkId -> { count, activity, source, stale }
   aggregate: 0,
   activeLinkId: null,

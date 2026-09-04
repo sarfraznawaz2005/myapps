@@ -29,6 +29,10 @@ const CH = {
   LINK_PICK_ELEMENT: 'link:pick-element',
   LINK_PROBE_URL: 'link:probe-url',
 
+  USERSCRIPT_CREATE: 'userscript:create',
+  USERSCRIPT_UPDATE: 'userscript:update',
+  USERSCRIPT_DELETE: 'userscript:delete',
+
   GROUP_CREATE: 'group:create',
   GROUP_UPDATE: 'group:update',
   GROUP_DELETE: 'group:delete',

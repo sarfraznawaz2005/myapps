@@ -115,6 +115,11 @@ if (!gotLock) {
     mainWindow.on('unmaximize', () => viewManager.layout());
     mainWindow.on('restore', () => viewManager.layout());
 
+    // Self-heal a stuck-input state (see ViewManager.kickActiveView) every
+    // time the window regains focus, instead of requiring a full
+    // close-to-tray-and-reopen to unstick clicks.
+    mainWindow.on('focus', () => viewManager.kickActiveView());
+
     mainWindow.on('close', (event) => {
       if (ctx.isQuitting) return;
       const { settings } = store.getState();

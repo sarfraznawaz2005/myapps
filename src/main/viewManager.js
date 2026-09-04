@@ -186,6 +186,23 @@ class ViewManager extends EventEmitter {
     }
   }
 
+  // Windows can occasionally leave the active WebContentsView unable to
+  // receive clicks after a native popup (a notification toast, an OAuth
+  // popup) steals and returns focus — the same class of native z-order bug
+  // _syncActiveVisibility works around for modals. Detaching and
+  // re-attaching forces Windows to redo input hit-testing without needing a
+  // full hide/show of the whole app window.
+  kickActiveView() {
+    if (this.modalOpen) return;
+    const view = this.activeId ? this.views.get(this.activeId) : null;
+    if (!view) return;
+    if (this.mainWindow.contentView.children.includes(view)) {
+      this.mainWindow.contentView.removeChildView(view);
+    }
+    this.mainWindow.contentView.addChildView(view);
+    view.setVisible(true);
+  }
+
   layout() {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
     const cb = this.mainWindow.getContentBounds();

@@ -41,9 +41,17 @@ function statusMarkup(link) {
     parts.push(`<span class="status-icon error" title="${(status.error || 'Crashed').replace(/"/g, '')}">${iconHtml('alertTriangle')}</span>`);
   }
 
-  if (unread.stale) {
-    const label = typeof unread.count === 'number' ? `last known: ${unread.count}` : 'hibernated';
-    parts.push(`<span class="pill stale" title="Hibernated — ${label}">${iconHtml('zzz')}</span>`);
+  // A link is "asleep" if it has no live WebContentsView right now — whether
+  // that is because it was explicitly hibernated, auto-idle-hibernated, or
+  // simply never opened yet this session. linkStatus.hibernated tracks live
+  // load/hibernate transitions; loadedLinkIds covers links that have never
+  // fired either transition (never-opened links have no linkStatus entry).
+  const asleep = status.hibernated != null ? status.hibernated : !state.loadedLinkIds.includes(link.id);
+  if (asleep) {
+    const label = typeof unread.count === 'number'
+      ? `last known: ${unread.count}`
+      : (state.loadedLinkIds.includes(link.id) ? 'hibernated' : 'not opened yet');
+    parts.push(`<span class="pill stale" title="Asleep — ${label}">${iconHtml('moon')}</span>`);
   } else if (typeof unread.count === 'number' && unread.count > 0) {
     parts.push(`<span class="pill" title="${unread.count} unread (source: ${unread.source || 'unknown'})">${unread.count > 9 ? '9+' : unread.count}</span>`);
   } else if (unread.activity) {

@@ -157,9 +157,15 @@
 .pill.dot { min-width: 8px; width: 8px; height: 8px; padding: 0; }
 .pill.stale {
   background: transparent;
-  border: 1px solid var(--text-faint);
-  color: var(--text-faint);
+  border: none;
+  min-width: 14px;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  color: var(--text-dim);
+  opacity: 1;
 }
+.pill.stale svg { width: 12px; height: 12px; }
 .pill.muted-icon, .status-icon {
   color: var(--text-faint);
   display: flex; align-items: center; justify-content: center;

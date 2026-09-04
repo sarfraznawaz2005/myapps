@@ -374,7 +374,8 @@
 }
 .toast.error { border-color: var(--danger); }
 .toast.warning { border-color: var(--warning); }
-.toast.success { border-color: var(--success); background: color-mix(in srgb, var(--success) 18%, var(--bg-elevated)); color: var(--success); }
+.toast.info { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 25%, white); color: #101828; font-weight: 700; }
+.toast.success { border-color: var(--success); background: color-mix(in srgb, var(--success) 25%, white); color: #101828; font-weight: 700; }
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }

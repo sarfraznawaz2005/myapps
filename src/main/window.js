@@ -2,6 +2,7 @@
 
 const path = require('path');
 const { app, BrowserWindow, screen } = require('electron');
+const { attachEditContextMenu } = require('./editContextMenu');
 
 function validateBounds(bounds) {
   if (!bounds || typeof bounds.x !== 'number' || typeof bounds.y !== 'number') return null;
@@ -42,6 +43,7 @@ function createMainWindow({ store, startHidden }) {
 
   const mainWindow = new BrowserWindow(winOpts);
   mainWindow.setMenuBarVisibility(false);
+  attachEditContextMenu(mainWindow.webContents);
 
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   // run.ps1/npm start launches straight from source (unpackaged); the built

@@ -4,6 +4,7 @@ const path = require('path');
 const { EventEmitter } = require('events');
 const { WebContentsView, shell } = require('electron');
 const { getLinkSession } = require('./sessions');
+const { attachEditContextMenu } = require('./editContextMenu');
 const { TOOLBAR_HEIGHT, SIDEBAR_COLLAPSED_WIDTH } = require('./constants');
 
 const LINK_PRELOAD = path.join(__dirname, '..', '..', 'preload', 'link-preload.js');
@@ -69,6 +70,7 @@ class ViewManager extends EventEmitter {
     view.setBackgroundColor('#ffffff');
 
     const wc = view.webContents;
+    attachEditContextMenu(wc);
 
     wc.on('page-title-updated', (_e, title) => this.emit('title', id, title));
     wc.on('page-favicon-updated', (_e, favicons) => this.emit('favicon', id, favicons));

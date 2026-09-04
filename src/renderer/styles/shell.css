@@ -7,7 +7,7 @@
 }
 
 #shell.collapsed {
-  grid-template-columns: 48px 1fr;
+  grid-template-columns: 68px 1fr;
 }
 
 /* ---------- Sidebar ---------- */
@@ -177,6 +177,7 @@
 #sidebar.collapsed-mode .link-name,
 #sidebar.collapsed-mode .group-header .name,
 #sidebar.collapsed-mode #sidebar-header .brand { display: none; }
+#sidebar.collapsed-mode #sidebar-header { justify-content: center; padding: 0; }
 
 #sidebar.collapsed-mode .footer-btn {
   justify-content: center;

@@ -9,7 +9,7 @@ const STORE_VERSION = 1;
 const TOOLBAR_HEIGHT = 40;
 const SIDEBAR_MIN = 180;
 const SIDEBAR_MAX = 420;
-const SIDEBAR_COLLAPSED_WIDTH = 48;
+const SIDEBAR_COLLAPSED_WIDTH = 68;
 
 // Shell (renderer) -> main, invoke (request/response)
 const CH = {

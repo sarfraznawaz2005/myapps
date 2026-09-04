@@ -1,9 +1,9 @@
 # My Apps
 
-A lightweight Ferdium-style desktop wrapper: add your own web links, group
-them, and get per-link unread badges, desktop notifications, tray/taskbar
-indicators, and true hibernation — without the memory cost of a
-framework-based shell or one `<webview>` renderer per service.
+A lightweight desktop wrapper: add your own web links, group them, and get
+per-link unread badges, desktop notifications, tray/taskbar indicators, and
+true hibernation — without the memory cost of a framework-based shell or one
+`<webview>` renderer per service.
 
 No pre-made service templates. Every link is a URL you type in yourself.
 
@@ -11,15 +11,31 @@ No pre-made service templates. Every link is a URL you type in yourself.
 
 ```
 run.bat      # dev run — installs deps + generates icons on first run, then `electron .`
-build.bat    # packages to dist/win-unpacked/My Apps.exe (zip target, no installer)
+build.bat    # packages to dist/ as both an NSIS installer and a zip
 create-shortcut.bat   # adds a Desktop shortcut to the packaged exe
 ```
 
-**Important:** the zip build target means there's no NSIS installer and no
-auto-update, and — because there's no installer — the dev run (`electron .`)
-and the packaged exe use **different** `userData` folders. If you switch
-from `run.bat` to the packaged build, you'll need to re-add your links (or
-use Settings → Data → Export/Import to carry them over).
+**Important:** the dev run (`electron .`) and an installed/packaged build use
+**different** `userData` folders. If you switch from `run.bat` to a packaged
+build, you'll need to re-add your links (or use Settings → Data →
+Export/Import to carry them over).
+
+There's no silent auto-update — Settings → About checks the project's GitHub
+releases and shows a **Download** button when a newer version exists, which
+opens the release page in your default browser.
+
+### Dev auto-reload
+
+While running via `run.bat`, editing and saving a source file reloads or
+restarts the app automatically (`src/main/devReload.js`) — never runs in a
+packaged build:
+
+- `src/renderer/**` → the shell window reloads.
+- `preload/link-preload.js` / `preload/inject-main-world.js` → every open
+  site reloads.
+- `main.js` / `src/main/**` → the whole app restarts.
+
+This is a full reload, not state-preserving HMR — there's no bundler here.
 
 ## Architecture in one paragraph
 
@@ -105,6 +121,27 @@ Two paths, both required for broad compatibility:
   real page notification (Path A), so Slack doesn't announce everything
   twice.
 
+## Site page extras
+
+- **Scroll arrows** (Settings → Appearance, off by default) — floating
+  ▲/▼ buttons injected into every open site, inside a closed shadow root so
+  the site's own CSS/JS can never touch them. Hidden until the page
+  scrolls, then fade out again after ~1.2s idle. Only affects window-level
+  scrolling — sites that scroll an inner div (Gmail, Slack) may not respond.
+- **Userscripts** (Settings → Userscripts) — your own JavaScript, run once
+  per page load on sites matching a pattern (`*` wildcard). Each script gets
+  its own top-level `webFrame.executeJavaScript()` call from
+  `preload/link-preload.js`, not a nested `eval()`/`Function()` — sites with
+  a strict CSP (Gmail, ChatGPT) block the nested form. Editing a script
+  takes effect on the next load/reload, not live.
+
+## Startup commands
+
+Settings → Commands runs any shell command in the background, non-blocking,
+every time the app starts (`src/main/startupCommands.js`, fire-and-forget
+`child_process.spawn`). Meant for starting something My Apps then points a
+link at — e.g. a locally-hosted webmail client.
+
 ## Hibernation
 
 Hibernating fully closes the link's renderer (`removeChildView` +
@@ -142,5 +179,4 @@ anything**, so:
 
 Settings → Performance shows a live per-process memory table
 (`app.getAppMetrics()`). Expect roughly one renderer process per *loaded*
-link, plus the shell — record your own comparison against Ferdium with the
-same services here once you've tried it on your machine.
+link, plus the shell.

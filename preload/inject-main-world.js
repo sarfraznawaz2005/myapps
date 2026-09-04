@@ -92,7 +92,7 @@
       options = options || {};
       // Only body/icon/tag are meaningful cross-process; passing everything
       // through has been observed to make some SW notifications silently
-      // never fire (mirrors ferdium-app's shim).
+      // never fire.
       new WrapNotification(title, { body: options.body, icon: options.icon, tag: options.tag });
       return Promise.resolve();
     };

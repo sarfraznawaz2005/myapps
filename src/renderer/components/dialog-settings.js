@@ -223,7 +223,26 @@ function dataSection() {
   `;
 }
 
-function aboutSection() {
+async function aboutSection() {
+  const result = await window.myApps.invoke('app:check-update');
+  const current = escapeHtml(result.currentVersion || '?');
+
+  let updateHtml;
+  if (result.ok && result.hasUpdate) {
+    updateHtml = `
+      <div class="readout" style="margin-top:10px;">
+        <strong>Update available: v${escapeHtml(result.latestVersion)}</strong>
+        <div style="margin-top:6px;">
+          <button class="btn primary small" id="about-update-btn" data-url="${escapeHtml(result.url)}">Download</button>
+        </div>
+      </div>
+    `;
+  } else if (result.ok) {
+    updateHtml = `<div class="hint" style="margin-top:10px;">You're on the latest version.</div>`;
+  } else {
+    updateHtml = `<div class="hint" style="margin-top:10px;">Couldn't check for updates.</div>`;
+  }
+
   return `
     <div class="settings-section">
       <h3>About My Apps</h3>
@@ -232,6 +251,8 @@ function aboutSection() {
         and get per-link unread badges, notifications, and true hibernation — without the overhead
         of a full framework-based shell.
       </p>
+      <div class="hint">Version <strong>${current}</strong></div>
+      ${updateHtml}
     </div>
   `;
 }
@@ -246,7 +267,7 @@ async function renderSection() {
   else if (activeSection === 'userscripts') body.innerHTML = userscriptsSection(getState().userscripts || [], editingUserscriptId);
   else if (activeSection === 'commands') body.innerHTML = commandsSection(getState().commands || [], editingCommandId);
   else if (activeSection === 'data') body.innerHTML = dataSection();
-  else body.innerHTML = aboutSection();
+  else { body.innerHTML = '<div class="hint">Loading…</div>'; body.innerHTML = await aboutSection(); }
   wireSection(s);
 }
 
@@ -371,6 +392,11 @@ function wireSection(s) {
       editingCommandId = null;
       renderSection();
     });
+  }
+
+  const updateBtn = document.getElementById('about-update-btn');
+  if (updateBtn) {
+    updateBtn.addEventListener('click', () => window.myApps.invoke('app:open-external-url', updateBtn.dataset.url));
   }
 
   const importBtn = document.getElementById('st-import');

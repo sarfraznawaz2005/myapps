@@ -12,6 +12,7 @@ const shortcuts = require('./shortcuts');
 const hibernationMod = require('./hibernation');
 const geolocation = require('./geolocation');
 const permissionPrompt = require('./permissionPrompt');
+const updateCheck = require('./updateCheck');
 
 const INJECTED_SOURCE = fs.readFileSync(
   path.join(__dirname, '..', '..', 'preload', 'inject-main-world.js'),
@@ -239,6 +240,13 @@ function initIpc(ctx) {
   ipcMain.handle(CH.APP_QUIT, () => {
     ctx.isQuitting = true;
     app.quit();
+  });
+
+  ipcMain.handle(CH.APP_CHECK_UPDATE, () => updateCheck.checkForUpdate());
+
+  ipcMain.handle(CH.APP_OPEN_EXTERNAL_URL, (_event, url) => {
+    if (typeof url === 'string' && /^https:\/\//.test(url)) navigation.openExternal(url);
+    return true;
   });
 
   ipcMain.handle(CH.LINK_CREATE, (_event, data) => store.createLink(data));

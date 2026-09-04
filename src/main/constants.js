@@ -15,6 +15,8 @@ const SIDEBAR_COLLAPSED_WIDTH = 48;
 const CH = {
   APP_GET_STATE: 'app:get-state',
   APP_QUIT: 'app:quit',
+  APP_CHECK_UPDATE: 'app:check-update',
+  APP_OPEN_EXTERNAL_URL: 'app:open-external-url',
 
   LINK_CREATE: 'link:create',
   LINK_UPDATE: 'link:update',

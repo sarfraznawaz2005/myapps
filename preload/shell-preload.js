@@ -6,7 +6,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // any channel not in one of these three sets is silently rejected.
 
 const INVOKE_CHANNELS = new Set([
-  'app:get-state', 'app:quit',
+  'app:get-state', 'app:quit', 'app:check-update', 'app:open-external-url',
   'link:create', 'link:update', 'link:delete', 'link:reorder', 'link:activate',
   'link:hibernate', 'link:reload', 'link:clear-data', 'link:devtools',
   'link:test-expert-rule', 'link:pick-element', 'link:probe-url',

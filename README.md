@@ -7,6 +7,18 @@ true hibernation — without the memory cost of a framework-based shell or one
 
 No pre-made service templates. Every link is a URL you type in yourself.
 
+## Features
+
+- **Links & groups** — add any site as a link, organize into collapsible groups, drag to reorder.
+- **Unread detection** — four signals (Badging API, tab title, favicon, a DOM-reading Expert rule), highest-trust-ever-seen wins per link.
+- **Notifications** — real page notifications forwarded (Gmail, Slack, WhatsApp Web, Teams, etc.), plus synthesized ones for sites with no notification API of their own.
+- **Hibernation** — fully closes a link's renderer to free memory, wakes it from disk-persisted cookies/localStorage.
+- **Tray & taskbar** — tray icon, taskbar overlay/flash, aggregate unread count across all links.
+- **Scroll arrows** — optional floating ▲/▼ buttons on every site (Settings → Appearance, off by default).
+- **Userscripts** — your own JavaScript, run on pages matching a URL pattern.
+- **Startup commands** — run any shell command in the background when the app starts (e.g. to launch a locally-hosted service).
+- **Settings export/import** — one JSON file for links, groups, settings, userscripts, and commands.
+
 ## Running it
 
 ```

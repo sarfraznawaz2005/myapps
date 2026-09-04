@@ -58,6 +58,10 @@ class ViewManager extends EventEmitter {
         preload: LINK_PRELOAD,
         contextIsolation: true,
         nodeIntegration: false,
+        // Off by default in Electron — without this, our preload (and so
+        // the expert-rule engine, element picker, etc.) never runs inside
+        // a site's own iframes, only its outer page.
+        nodeIntegrationInSubFrames: true,
         backgroundThrottling,
         spellcheck: !!this.store.getState().settings.spellcheck,
         additionalArguments: [`--link-id=${id}`],

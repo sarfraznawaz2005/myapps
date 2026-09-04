@@ -107,8 +107,11 @@ const TITLE_UNREAD_PATTERNS = [
   /\((\d+)\)/,
 ];
 
-const FAVICON_UNREAD_KEYWORDS = /unread|unseen|alert|new/i;
-const FAVICON_READ_KEYWORDS = /seen|read|default/i;
+// \b (word boundary) so "unread" doesn't match inside an unrelated compound
+// word like Gmail's own favicon filename ("unreadcountfavicon"), which
+// contains that text on every load regardless of the real count.
+const FAVICON_UNREAD_KEYWORDS = /\b(unread|unseen|alert|new)\b/i;
+const FAVICON_READ_KEYWORDS = /\b(seen|read|default)\b/i;
 
 module.exports = {
   APP_ID,

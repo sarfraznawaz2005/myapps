@@ -420,6 +420,11 @@
   }
 
   function updateScrollArrows() {
+    // Subframes get this whole script injected too (needed for the expert
+    // rule engine to reach content inside a site's own iframes) — without
+    // this guard, every ad/embed iframe on the page would grow its own
+    // floating arrow widget.
+    if (window !== window.top) return;
     if (config.scrollArrows) initScrollArrows();
     else removeScrollArrows();
   }

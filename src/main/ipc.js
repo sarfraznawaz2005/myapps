@@ -55,6 +55,15 @@ function sendToShell(ctx, channel, payload) {
   if (w && !w.isDestroyed()) w.webContents.send(channel, payload);
 }
 
+// webContents.send() only reaches the main frame — a site that embeds its
+// real content in a same-origin iframe (webmail behind a hosting-panel
+// wrapper page, for example) never gets these otherwise.
+function sendToAllFrames(webContents, channel, ...args) {
+  for (const frame of webContents.mainFrame.framesInSubtree) {
+    try { webContents.sendToFrame(frame.routingId, channel, ...args); } catch (_e) { /* frame gone mid-loop */ }
+  }
+}
+
 function pushLinkConfig(ctx, link) {
   const view = ctx.viewManager.getView(link.id);
   if (view && !view.webContents.isDestroyed()) {
@@ -296,20 +305,27 @@ function initIpc(ctx) {
   ipcMain.handle(CH.LINK_TEST_EXPERT_RULE, async (_event, id, rule) => {
     const view = viewManager.getView(id) || viewManager.ensureView(id);
     if (!view) return { ok: false, error: 'Link is not loaded' };
-    try {
-      const result = await view.webContents.executeJavaScript(
-        `(window.__myappsTestExpertRule ? window.__myappsTestExpertRule(${JSON.stringify(rule)}) : { ok: false, error: 'Page not ready yet — try again in a moment.' })`
-      );
-      return result;
-    } catch (err) {
-      return { ok: false, error: String((err && err.message) || err) };
+    const script = `(window.__myappsTestExpertRule ? window.__myappsTestExpertRule(${JSON.stringify(rule)}) : { ok: false, error: 'Page not ready yet — try again in a moment.' })`;
+    // Try every frame (main page + any same-origin iframes) — a site can
+    // embed its real content in an iframe, and the selector only exists
+    // there, not on the outer page.
+    let lastResult = { ok: false, error: 'Page not ready yet — try again in a moment.' };
+    for (const frame of view.webContents.mainFrame.framesInSubtree) {
+      try {
+        const result = await frame.executeJavaScript(script);
+        if (result && result.ok && result.matched > 0) return result;
+        lastResult = result;
+      } catch (err) {
+        lastResult = { ok: false, error: String((err && err.message) || err) };
+      }
     }
+    return lastResult;
   });
 
   ipcMain.handle(CH.LINK_PICK_ELEMENT, (_event, id) => {
     const view = viewManager.getView(id) || viewManager.ensureView(id);
     if (!view) return false;
-    view.webContents.send(CH.LINK_START_PICKER);
+    sendToAllFrames(view.webContents, CH.LINK_START_PICKER);
     return true;
   });
 
@@ -422,7 +438,7 @@ function initIpc(ctx) {
     if (!isOpen) {
       for (const link of store.getState().links) {
         const view = viewManager.getView(link.id);
-        if (view && !view.webContents.isDestroyed()) view.webContents.send(CH.LINK_STOP_PICKER);
+        if (view && !view.webContents.isDestroyed()) sendToAllFrames(view.webContents, CH.LINK_STOP_PICKER);
       }
     }
   });

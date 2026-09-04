@@ -47,7 +47,10 @@ if (linkId) {
   // call rather than being eval()'d from inside boot.source — a strict
   // page CSP (Gmail, ChatGPT) blocks eval/Function called from a script
   // already running in the page, but not this kind of external injection.
-  const scripts = (boot.config && boot.config.userscripts) || [];
+  // Top frame only — subframes get this whole preload too (needed so the
+  // expert rule engine can reach a site's own iframes), but a userscript
+  // should run once per page, not once per ad/embed iframe on it.
+  const scripts = (window === window.top && boot.config && boot.config.userscripts) || [];
   const currentUrl = location.href;
   for (const s of scripts) {
     if (!userscriptMatchesUrl(currentUrl, s.matches)) continue;

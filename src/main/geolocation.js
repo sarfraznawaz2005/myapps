@@ -28,10 +28,26 @@ if ($watcher.Permission -eq 'Denied') {
 $watcher.Stop()
 `;
 
+// Callers (watchPosition fires every 30s per link, and every link with
+// location on shares the same OS-level fix) used to each spawn their own
+// powershell.exe + reload the System.Device assembly, so a couple of tabs
+// left open for a while could pile up several of these at once and peg the
+// CPU. A desktop's position essentially never changes, so one fix is good
+// for a full hour; and any callers that land while a fetch is already
+// in flight just await that same fetch instead of starting another.
+const CACHE_TTL_MS = 60 * 60 * 1000;
+let cached = null; // { coords, ts }
+let inFlight = null;
+
 // error.code mirrors the web Geolocation API's PositionError codes, so the
 // inject-main-world.js shim can hand it straight to the page's error callback.
 function getWindowsLocation() {
-  return new Promise((resolve, reject) => {
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return Promise.resolve({ ...cached.coords, fromCache: true });
+  }
+  if (inFlight) return inFlight;
+
+  inFlight = new Promise((resolve, reject) => {
     if (process.platform !== 'win32') {
       reject(Object.assign(new Error('Not supported on this OS.'), { code: 2 }));
       return;
@@ -52,13 +68,17 @@ function getWindowsLocation() {
         }
         if (line.startsWith('OK|')) {
           const [, lat, lon, acc] = line.split('|');
-          resolve({ latitude: parseFloat(lat), longitude: parseFloat(lon), accuracy: parseFloat(acc) || 50 });
+          const coords = { latitude: parseFloat(lat), longitude: parseFloat(lon), accuracy: parseFloat(acc) || 50 };
+          cached = { coords, ts: Date.now() };
+          resolve({ ...coords, fromCache: false });
           return;
         }
         reject(Object.assign(new Error('Windows could not get a location fix.'), { code: 2 }));
       }
     );
-  });
+  }).finally(() => { inFlight = null; });
+
+  return inFlight;
 }
 
 module.exports = { getWindowsLocation };

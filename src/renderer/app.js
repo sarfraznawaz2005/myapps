@@ -3,6 +3,7 @@ import * as sidebar from './components/sidebar.js';
 import * as toolbar from './components/toolbar.js';
 import { showToast } from './components/toast.js';
 import { openLinkDialog } from './components/dialog-link.js';
+import { openPermissionPrompt } from './components/dialog-permission.js';
 
 const contentEmpty = document.getElementById('content-empty');
 const quickSwitch = document.getElementById('quick-switch');
@@ -68,6 +69,10 @@ function onActive(payload) {
 
 function onToast(payload) {
   showToast(payload);
+}
+
+function onPermissionPrompt(payload) {
+  openPermissionPrompt(payload);
 }
 
 function onOpenDialog(payload) {
@@ -141,6 +146,7 @@ async function init() {
   window.myApps.on('shell:active', onActive);
   window.myApps.on('shell:toast', onToast);
   window.myApps.on('shell:open-dialog', onOpenDialog);
+  window.myApps.on('shell:permission-prompt', onPermissionPrompt);
 
   sidebar.initSidebar();
   toolbar.initToolbar();

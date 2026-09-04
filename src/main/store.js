@@ -81,7 +81,18 @@ function defaultLinkFields() {
       },
     },
     hibernate: { policy: 'idle', minutes: 30, keepAwake: true },
-    navigation: { openExternal: false, allowedPopupHosts: [], allowMedia: false, allowLocation: false },
+    // mediaDecided/locationDecided: false means "never asked yet" — the live
+    // Allow/Block prompt shows the first time this link requests that
+    // permission, then flips the flag true so it never asks again (same as
+    // the Edit dialog's checkboxes, which also set it true when flipped by hand).
+    navigation: {
+      openExternal: false,
+      allowedPopupHosts: [],
+      allowMedia: false,
+      mediaDecided: false,
+      allowLocation: false,
+      locationDecided: false,
+    },
   };
 }
 

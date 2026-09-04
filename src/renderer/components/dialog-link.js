@@ -30,7 +30,7 @@ function defaultDraft() {
     muted: false,
     openOnStartup: false,
     notifications: { enabled: true, sound: true, synthesize: 'auto' },
-    navigation: { openExternal: false, allowMedia: false, allowLocation: false, allowedPopupHosts: [] },
+    navigation: { openExternal: false, allowMedia: false, mediaDecided: false, allowLocation: false, locationDecided: false, allowedPopupHosts: [] },
     unread: {
       enabled: true,
       title: { mode: 'auto', regex: null },
@@ -276,8 +276,10 @@ function wireGeneralTab() {
   bind('lk-notif-synth', 'change', (el) => el.value, (v) => { draft.notifications.synthesize = v; });
   bind('lk-ua', 'input', (el) => el.value.trim() || null, (v) => { draft.userAgent = v; });
   bind('lk-open-external', 'change', (el) => el.checked, (v) => { draft.navigation.openExternal = v; });
-  bind('lk-allow-media', 'change', (el) => el.checked, (v) => { draft.navigation.allowMedia = v; });
-  bind('lk-allow-location', 'change', (el) => el.checked, (v) => { draft.navigation.allowLocation = v; });
+  // Setting this by hand counts as a decision too, same as answering the
+  // live Allow/Block prompt — either way we shouldn't ask again later.
+  bind('lk-allow-media', 'change', (el) => el.checked, (v) => { draft.navigation.allowMedia = v; draft.navigation.mediaDecided = true; });
+  bind('lk-allow-location', 'change', (el) => el.checked, (v) => { draft.navigation.allowLocation = v; draft.navigation.locationDecided = true; });
 
   const urlInput = document.getElementById('lk-url');
   const nameInput = document.getElementById('lk-name');

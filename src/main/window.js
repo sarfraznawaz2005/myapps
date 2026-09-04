@@ -1,7 +1,7 @@
 'use strict';
 
 const path = require('path');
-const { BrowserWindow, screen } = require('electron');
+const { app, BrowserWindow, screen } = require('electron');
 
 function validateBounds(bounds) {
   if (!bounds || typeof bounds.x !== 'number' || typeof bounds.y !== 'number') return null;
@@ -44,6 +44,14 @@ function createMainWindow({ store, startHidden }) {
   mainWindow.setMenuBarVisibility(false);
 
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+  // run.ps1/npm start launches straight from source (unpackaged); the built
+  // installer output is packaged. Electron syncs the window title to the
+  // page's own <title> tag by default once the page finishes loading, which
+  // would silently overwrite a setTitle() called any earlier than this —
+  // so this has to run after did-finish-load, not right after loadFile().
+  if (!app.isPackaged) {
+    mainWindow.webContents.on('did-finish-load', () => mainWindow.setTitle('My Apps - DEV'));
+  }
 
   mainWindow.once('ready-to-show', () => {
     // maximize() forces a hidden window onto the screen on Windows, even

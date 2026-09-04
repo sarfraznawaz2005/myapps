@@ -43,7 +43,7 @@ class ViewManager extends EventEmitter {
     const link = this._link(id);
     if (!link) return null;
 
-    const ses = getLinkSession(link);
+    const ses = getLinkSession(link, this.store);
     const backgroundThrottling = !(link.unread.enabled || link.notifications.enabled);
 
     view = new WebContentsView({

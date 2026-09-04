@@ -47,6 +47,7 @@ const CH = {
 
   METRICS_GET: 'metrics:get',
   MENU_LINK_CONTEXT: 'menu:link-context',
+  LINK_PERMISSION_RESPOND: 'link:permission-respond',
 
   // Shell -> main, send (fire and forget)
   UI_LAYOUT: 'ui:layout',
@@ -64,6 +65,7 @@ const CH = {
   SHELL_ACTIVE: 'shell:active',
   SHELL_TOAST: 'shell:toast',
   SHELL_OPEN_DIALOG: 'shell:open-dialog',
+  SHELL_PERMISSION_PROMPT: 'shell:permission-prompt',
 
   // Link preload -> main
   LINK_BOOTSTRAP: 'link:bootstrap',

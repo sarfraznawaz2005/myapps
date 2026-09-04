@@ -15,6 +15,7 @@ const INVOKE_CHANNELS = new Set([
   'dnd:set',
   'nav:go', 'nav:navigate', 'nav:copy-url', 'nav:open-external',
   'metrics:get', 'menu:link-context',
+  'link:permission-respond',
 ]);
 
 const SEND_CHANNELS = new Set(['ui:layout', 'ui:modal-open', 'ui:ready']);
@@ -22,7 +23,7 @@ const SEND_CHANNELS = new Set(['ui:layout', 'ui:modal-open', 'ui:ready']);
 const ON_CHANNELS = new Set([
   'shell:state', 'shell:unread', 'shell:aggregate', 'shell:nav',
   'shell:link-status', 'shell:favicon', 'shell:audio', 'shell:active',
-  'shell:toast', 'shell:open-dialog',
+  'shell:toast', 'shell:open-dialog', 'shell:permission-prompt',
 ]);
 
 function invoke(channel, ...args) {

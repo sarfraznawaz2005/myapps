@@ -152,7 +152,10 @@ function initIpc(ctx) {
     ctx.crashInfo.set(id, info);
 
     const link = store.getState().links.find((l) => l.id === id);
-    if (info.count <= 2) {
+    // Only one silent auto-retry, not two — a link that's genuinely broken
+    // (bad driver/GPU state, etc.) used to crash, quietly reload, and crash
+    // again before the "keeps crashing" error ever surfaced.
+    if (info.count <= 1) {
       sendToShell(ctx, CH.SHELL_TOAST, {
         type: 'warning',
         message: `${link ? link.name : 'A link'} crashed (${details && details.reason}) — reloading.`,
@@ -283,6 +286,11 @@ function initIpc(ctx) {
   ipcMain.handle(CH.LINK_DELETE, async (_event, id, opts) => {
     if (viewManager.isLoaded(id)) viewManager.hibernate(id);
     unreadTracker.remove(id);
+    // lastCounts/crashInfo are keyed by linkId and only ever grow — without
+    // this, deleting and recreating links over a long session slowly builds
+    // up entries for ids that no longer exist.
+    ctx.lastCounts.delete(id);
+    ctx.crashInfo.delete(id);
     if (opts && opts.deleteData) {
       await viewManager.clearData(id);
       favicon.removeCachedFavicon(id);

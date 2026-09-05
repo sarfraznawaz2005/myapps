@@ -194,7 +194,7 @@ class Store {
   save() {
     if (this._saveTimer) clearTimeout(this._saveTimer);
     this._saveTimer = setTimeout(() => this._writeNow(), 300);
-    this._notify();
+    this._scheduleNotify();
   }
 
   saveImmediate() {
@@ -203,19 +203,40 @@ class Store {
     this._notify();
   }
 
+  // Several store methods (e.g. ViewManager.activate updating both ui and a
+  // link) call save() more than once in the same tick. Without batching,
+  // each call synchronously pushed a full SHELL_STATE broadcast, causing the
+  // renderer to fully rebuild the sidebar list multiple times for one user
+  // action. Collapsing same-tick notifies into one microtask fixes that
+  // without changing any calling code's behavior or ordering.
+  _scheduleNotify() {
+    if (this._notifyScheduled) return;
+    this._notifyScheduled = true;
+    queueMicrotask(() => {
+      this._notifyScheduled = false;
+      this._notify();
+    });
+  }
+
   _writeNow() {
     this._saveTimer = null;
-    try {
-      // Backup before overwrite so a crash mid-write can't destroy both copies.
-      if (fs.existsSync(this.filePath)) {
-        try { fs.copyFileSync(this.filePath, `${this.filePath}.bak`); } catch (_e) { /* ignore */ }
+    // Async, off the main/UI thread's synchronous call stack — this used to
+    // use the *Sync fs calls, which block Electron's main process while it
+    // writes, including the native input pump that delivers clicks to every
+    // WebContentsView. A slow disk (AV scan, network drive) could stall a
+    // click landing at the exact moment a save fires.
+    (async () => {
+      try {
+        if (fs.existsSync(this.filePath)) {
+          try { await fs.promises.copyFile(this.filePath, `${this.filePath}.bak`); } catch (_e) { /* ignore */ }
+        }
+        const tmpPath = `${this.filePath}.tmp`;
+        await fs.promises.writeFile(tmpPath, JSON.stringify(this.state, null, 2));
+        await fs.promises.rename(tmpPath, this.filePath);
+      } catch (err) {
+        console.error('Failed to write store.json:', err);
       }
-      const tmpPath = `${this.filePath}.tmp`;
-      fs.writeFileSync(tmpPath, JSON.stringify(this.state, null, 2));
-      fs.renameSync(tmpPath, this.filePath);
-    } catch (err) {
-      console.error('Failed to write store.json:', err);
-    }
+    })();
   }
 
   getState() {

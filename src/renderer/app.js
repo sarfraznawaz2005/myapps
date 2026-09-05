@@ -15,6 +15,11 @@ function applyTheme() {
   document.documentElement.dataset.theme = getState().settings.theme || 'dark';
 }
 
+// Tracks the links/groups actually last drawn into the sidebar, so a state
+// push that only changed something unrelated (window position, settings)
+// doesn't force a full sidebar HTML rebuild + row re-wiring.
+let lastRenderedListSignature = null;
+
 function onShellState(payload) {
   setState({
     version: payload.version,
@@ -31,7 +36,11 @@ function onShellState(payload) {
   });
   applyTheme();
   sidebar.applySidebarWidth();
-  sidebar.renderList();
+  const listSignature = JSON.stringify({ links: payload.links, groups: payload.groups });
+  if (listSignature !== lastRenderedListSignature) {
+    lastRenderedListSignature = listSignature;
+    sidebar.renderList();
+  }
   toolbar.update();
   contentEmpty.style.display = getState().links.length === 0 ? 'flex' : 'none';
 }

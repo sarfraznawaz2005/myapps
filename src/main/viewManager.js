@@ -84,12 +84,20 @@ class ViewManager extends EventEmitter {
 
     const emitStatus = () => {
       if (wc.isDestroyed()) return;
+      // error/crashed are set by did-fail-load / render-process-gone below.
+      // The renderer merges status patches on top of old ones instead of
+      // replacing them, so without clearing these here, a link that once
+      // failed stays flagged as errored forever, even after a later
+      // successful load — the only past fix was a full app restart, which
+      // wipes the renderer's stale merged state.
       this.emit('status', id, {
         loading: wc.isLoading(),
         canGoBack: wc.navigationHistory ? wc.navigationHistory.canGoBack() : wc.canGoBack(),
         canGoForward: wc.navigationHistory ? wc.navigationHistory.canGoForward() : wc.canGoForward(),
         url: wc.getURL(),
         title: wc.getTitle(),
+        error: null,
+        crashed: false,
       });
     };
     wc.on('did-start-loading', emitStatus);

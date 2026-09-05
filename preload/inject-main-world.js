@@ -154,6 +154,14 @@
       navigator.geolocation.clearWatch = function (id) {
         if (watchTimers[id]) { clearInterval(watchTimers[id]); delete watchTimers[id]; }
       };
+      // Safety net: a page that calls watchPosition and never clearWatch
+      // (common) would otherwise poll every 30s for as long as this view
+      // stays loaded. pagehide covers both a real navigation and the page
+      // being hidden/discarded, so this can't outlive the page that started it.
+      window.addEventListener('pagehide', function () {
+        for (var key in watchTimers) { clearInterval(watchTimers[key]); }
+        watchTimers = {};
+      });
     }
   } catch (e) { /* some pages freeze navigator; ignore */ }
 

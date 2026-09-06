@@ -56,6 +56,8 @@ function statusMarkup(link) {
     parts.push(`<span class="pill" title="${unread.count} unread (source: ${unread.source || 'unknown'})">${unread.count > 9 ? '9+' : unread.count}</span>`);
   } else if (unread.activity) {
     parts.push(`<span class="pill dot" title="Activity (source: ${unread.source || 'unknown'})"></span>`);
+  } else {
+    parts.push(`<span class="pill active-icon" title="Active — loaded">${iconHtml('circleFilled')}</span>`);
   }
 
   return parts.join('');

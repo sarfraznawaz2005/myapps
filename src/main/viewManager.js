@@ -77,7 +77,7 @@ class ViewManager extends EventEmitter {
     view.setBackgroundColor('#ffffff');
 
     const wc = view.webContents;
-    attachEditContextMenu(wc);
+    attachEditContextMenu(wc, { withPageControls: true });
 
     wc.on('page-title-updated', (_e, title) => this.emit('title', id, title));
     wc.on('page-favicon-updated', (_e, favicons) => this.emit('favicon', id, favicons));

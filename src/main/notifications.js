@@ -77,6 +77,11 @@ class NotificationsController {
         view.webContents.send(notifClickChannel(linkId), payload.notificationId);
       }
     });
+    // A Windows toast can steal input hit-testing from the active view without
+    // ever sending our window a real blur/focus cycle, leaving clicks dead
+    // until minimize/restore. Closing the toast (dismissed or timed out) is
+    // the reliable signal to self-heal — see viewManager.kickActiveView.
+    notif.on('close', () => this.viewManager.kickActiveView());
     notif.show();
   }
 
@@ -121,6 +126,7 @@ class NotificationsController {
       silent: !link.notifications.sound,
     });
     notif.on('click', () => this._focusLink(linkId));
+    notif.on('close', () => this.viewManager.kickActiveView());
     notif.show();
   }
 }

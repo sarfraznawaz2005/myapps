@@ -71,6 +71,10 @@ function getLinkSession(link, store) {
       }
       if (permission === 'midi' || permission === 'midiSysex') return callback(false);
       if (permission === 'pointerLock' || permission === 'fullscreen') return callback(true);
+      // File System Access API (showDirectoryPicker/showOpenFilePicker read-write).
+      // The user already chose the file/folder via a native OS dialog before this
+      // fires, so it's the same informed consent Chrome grants automatically.
+      if (permission === 'fileSystem') return callback(true);
       return callback(false);
     });
 

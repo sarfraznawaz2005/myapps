@@ -150,6 +150,13 @@ class ViewManager extends EventEmitter {
       return { action: 'deny' };
     });
 
+    // setWindowOpenHandler's overrideBrowserWindowOptions only covers session/
+    // UA — it doesn't run our own window setup, so popups (OAuth logins, etc.)
+    // need the right-click menu wired up separately once Electron creates them.
+    wc.on('did-create-window', (childWindow) => {
+      attachEditContextMenu(childWindow.webContents, { withPageControls: true });
+    });
+
     this.views.set(id, view);
     this.mainWindow.contentView.addChildView(view);
     view.setVisible(false);

@@ -91,6 +91,23 @@ function generalSection(s) {
       ${checkboxRow('st-spellcheck', 'Spellcheck text fields', s.spellcheck)}
       ${checkboxRow('st-confirm-delete', 'Confirm before deleting a link', s.confirmDelete)}
     </div>
+    <div class="settings-section">
+      <h3>Network</h3>
+      <div class="field">
+        <label>DNS resolver</label>
+        <select id="st-dns-provider">
+          <option value="system" ${s.dnsProvider === 'system' ? 'selected' : ''}>System default</option>
+          <option value="google" ${s.dnsProvider === 'google' ? 'selected' : ''}>Google (8.8.8.8)</option>
+          <option value="cloudflare" ${s.dnsProvider === 'cloudflare' ? 'selected' : ''}>Cloudflare (1.1.1.1)</option>
+          <option value="custom" ${s.dnsProvider === 'custom' ? 'selected' : ''}>Custom</option>
+        </select>
+      </div>
+      <div class="field" id="st-dns-custom-field" style="${s.dnsProvider === 'custom' ? '' : 'display:none;'}">
+        <label>Custom DNS-over-HTTPS URL</label>
+        <input type="text" id="st-dns-custom-server" value="${escapeHtml(s.dnsCustomServer || '')}" placeholder="https://dns.example.com/dns-query" />
+      </div>
+      <div class="hint">Applies to every link opened in this app. Uses DNS-over-HTTPS, so lookups are encrypted.</div>
+    </div>
   `;
 }
 
@@ -344,6 +361,7 @@ function wireSection(s) {
     'st-overlay-style': ['overlayStyle', 'value'],
     'st-theme': ['theme', 'value'],
     'st-default-hib': ['defaultHibernate', 'value'],
+    'st-dns-provider': ['dnsProvider', 'value'],
   };
   Object.entries(map).forEach(([id, [key, prop]]) => {
     const el = document.getElementById(id);
@@ -352,8 +370,19 @@ function wireSection(s) {
       const value = el[prop];
       await window.myApps.invoke('settings:update', { [key]: value });
       if (key === 'theme') document.documentElement.dataset.theme = value;
+      if (key === 'dnsProvider') {
+        const customField = document.getElementById('st-dns-custom-field');
+        if (customField) customField.style.display = value === 'custom' ? '' : 'none';
+      }
     });
   });
+
+  const dnsCustomEl = document.getElementById('st-dns-custom-server');
+  if (dnsCustomEl) {
+    dnsCustomEl.addEventListener('change', () => {
+      window.myApps.invoke('settings:update', { dnsCustomServer: dnsCustomEl.value.trim() });
+    });
+  }
 
   const dndEl = document.getElementById('st-dnd');
   if (dndEl) {

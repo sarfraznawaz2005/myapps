@@ -13,6 +13,7 @@ const hibernationMod = require('./hibernation');
 const geolocation = require('./geolocation');
 const permissionPrompt = require('./permissionPrompt');
 const updateCheck = require('./updateCheck');
+const { applyDnsSettings } = require('./dns');
 
 const INJECTED_SOURCE = fs.readFileSync(
   path.join(__dirname, '..', '..', 'preload', 'inject-main-world.js'),
@@ -372,6 +373,9 @@ function initIpc(ctx) {
     tray.refreshMenu();
     if (Object.prototype.hasOwnProperty.call(patch, 'dnd')) recomputeAggregate(ctx);
     if (Object.prototype.hasOwnProperty.call(patch, 'scrollArrows')) broadcastLinkConfig(ctx);
+    if (Object.prototype.hasOwnProperty.call(patch, 'dnsProvider') || Object.prototype.hasOwnProperty.call(patch, 'dnsCustomServer')) {
+      applyDnsSettings(settings);
+    }
     return settings;
   });
 

@@ -15,6 +15,7 @@ const { attachShortcuts } = require('./src/main/shortcuts');
 const { initIpc, recomputeAggregate } = require('./src/main/ipc');
 const { startDevReload } = require('./src/main/devReload');
 const { runStartupCommands } = require('./src/main/startupCommands');
+const { applyDnsSettings } = require('./src/main/dns');
 
 // Must be called before whenReady(), and must match build.appId in
 // package.json, or packaged Windows notifications show as "electron.app.Electron".
@@ -76,6 +77,8 @@ if (!gotLock) {
     const store = new Store();
     store.load();
     ctx.store = store;
+
+    applyDnsSettings(store.getState().settings);
 
     runStartupCommands(store);
 

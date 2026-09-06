@@ -30,6 +30,8 @@ function defaultSettings() {
     openExternalLinksInBrowser: true,
     spellcheck: true,
     confirmDelete: true,
+    dnsProvider: 'system', // system | google | cloudflare | custom
+    dnsCustomServer: '', // DNS-over-HTTPS URL, used when dnsProvider is 'custom'
     trayHintShown: false,
     autoLaunchInitialized: false,
   };

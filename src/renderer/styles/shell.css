@@ -165,7 +165,7 @@
   justify-content: center;
   line-height: 1;
 }
-.pill.dot { min-width: 8px; width: 8px; height: 8px; padding: 0; }
+.pill.dot { min-width: 10px; width: 10px; height: 10px; padding: 0; }
 .pill.stale {
   background: transparent;
   border: none;

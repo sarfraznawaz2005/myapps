@@ -53,6 +53,13 @@ class NotificationsController {
       mainWindow.focus();
     }
     this.viewManager.activate(linkId);
+    // mainWindow.focus() above already triggers the self-heal (see
+    // ViewManager.kickActiveView), but at that point activate() hasn't run
+    // yet, so it kicks whatever link was active *before* this click — not
+    // the one we just switched to. Kick again now that the right view is
+    // actually active, or a notification click leaves that view unclickable
+    // until a manual minimize/restore.
+    this.viewManager.kickActiveView();
   }
 
   // Path A: a real notification forwarded from the page (window.Notification

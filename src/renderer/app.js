@@ -75,7 +75,14 @@ function onActive(payload) {
   setState({ activeLinkId: payload.linkId });
   sidebar.updateActiveRow();
   toolbar.update();
+  // A find bar left open while switching links would keep searching the
+  // link you just left, not the one you're looking at — close it instead.
+  toolbar.closeFindBar();
   contentEmpty.style.display = getState().links.length === 0 ? 'flex' : 'none';
+}
+
+function onFindResult(payload) {
+  toolbar.onFindResult(payload);
 }
 
 function onToast(payload) {
@@ -90,6 +97,7 @@ function onOpenDialog(payload) {
   if (!payload) return;
   if (payload.type === 'focus-url') toolbar.focusUrlBar();
   else if (payload.type === 'quick-switch') openQuickSwitch();
+  else if (payload.type === 'find') toolbar.openFindBar();
   else if (payload.type === 'edit-link') { const link = getLink(payload.linkId); if (link) openLinkDialog(link); }
   else if (payload.type === 'picked-element') {
     window.dispatchEvent(new CustomEvent('__myapps-picked-element', { detail: payload }));
@@ -158,6 +166,7 @@ async function init() {
   window.myApps.on('shell:toast', onToast);
   window.myApps.on('shell:open-dialog', onOpenDialog);
   window.myApps.on('shell:permission-prompt', onPermissionPrompt);
+  window.myApps.on('shell:find-result', onFindResult);
 
   sidebar.initSidebar();
   toolbar.initToolbar();

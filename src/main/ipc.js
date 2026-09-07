@@ -145,6 +145,16 @@ function initIpc(ctx) {
     sendToShell(ctx, CH.SHELL_LINK_STATUS, { linkId: id, hibernated: false });
   });
 
+  // Find results only matter for whichever link is on screen right now — a
+  // background tab's stale search shouldn't paint over the visible one.
+  viewManager.on('find-result', (id, result) => {
+    if (viewManager.getActiveId() !== id) return;
+    sendToShell(ctx, CH.SHELL_FIND_RESULT, {
+      matches: result.matches,
+      activeMatchOrdinal: result.activeMatchOrdinal,
+    });
+  });
+
   viewManager.on('crash', (id, details) => {
     const wasActive = viewManager.getActiveId() === id;
     const info = ctx.crashInfo.get(id) || { count: 0, first: Date.now() };
@@ -196,6 +206,17 @@ function initIpc(ctx) {
     sendToShell(ctx, CH.SHELL_OPEN_DIALOG, { type: 'picked-element', linkId, ...payload });
   });
 
+  ipcMain.handle(CH.LINK_FIND, (_event, text, options) => {
+    const id = viewManager.getActiveId();
+    if (!id) return false;
+    return viewManager.findInPage(id, text, options);
+  });
+
+  ipcMain.handle(CH.LINK_FIND_STOP, () => {
+    const id = viewManager.getActiveId();
+    if (id) viewManager.stopFindInPage(id);
+  });
+
   // Gate stays here rather than in navigator.geolocation itself, so a link
   // with location off gets the same PERMISSION_DENIED (code 1) a real
   // browser would give, without ever shelling out to Windows.
@@ -224,6 +245,11 @@ function initIpc(ctx) {
       permissionPrompt.toast(allow ? 'success' : 'warning', `Location ${allow ? 'allowed' : 'blocked'} for ${link.name}.`);
       if (!allow) return { ok: false, code: 1, message: 'Location is not enabled for this link.' };
     }
+
+    // A user-set manual position (Settings > General > Location) always wins
+    // over Windows — skip the PowerShell round-trip entirely when it's set.
+    const manual = geolocation.parseManualLocation(store.getState().settings.manualLocation);
+    if (manual) return { ok: true, coords: manual };
 
     // geolocation.js toasts "Asking Windows…" / "Windows found your
     // location." itself around the actual fetch — nothing to add here.

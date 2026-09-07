@@ -10,6 +10,7 @@ const INVOKE_CHANNELS = new Set([
   'link:create', 'link:update', 'link:delete', 'link:reorder', 'link:activate',
   'link:hibernate', 'link:reload', 'link:clear-data', 'link:devtools',
   'link:test-expert-rule', 'link:pick-element', 'link:probe-url',
+  'link:find', 'link:find-stop',
   'group:create', 'group:update', 'group:delete', 'group:reorder',
   'userscript:create', 'userscript:update', 'userscript:delete',
   'command:create', 'command:update', 'command:delete',
@@ -25,7 +26,7 @@ const SEND_CHANNELS = new Set(['ui:layout', 'ui:modal-open', 'ui:ready']);
 const ON_CHANNELS = new Set([
   'shell:state', 'shell:unread', 'shell:aggregate', 'shell:nav',
   'shell:link-status', 'shell:favicon', 'shell:audio', 'shell:active',
-  'shell:toast', 'shell:open-dialog', 'shell:permission-prompt',
+  'shell:toast', 'shell:open-dialog', 'shell:permission-prompt', 'shell:find-result',
 ]);
 
 function invoke(channel, ...args) {

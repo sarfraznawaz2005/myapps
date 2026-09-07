@@ -32,6 +32,7 @@ function defaultSettings() {
     confirmDelete: true,
     dnsProvider: 'system', // system | google | cloudflare | custom
     dnsCustomServer: '', // DNS-over-HTTPS URL, used when dnsProvider is 'custom'
+    manualLocation: '', // 'lat,lon' — when set, sent to links instead of asking Windows
     trayHintShown: false,
     autoLaunchInitialized: false,
   };

@@ -118,6 +118,13 @@ class ViewManager extends EventEmitter {
       this.emit('crash', id, details);
     });
 
+    // Same stuck-input class as the notification-toast case above: a detached
+    // DevTools window returning focus to the main window doesn't always send
+    // a real blur/focus cycle either.
+    wc.on('devtools-closed', () => this.kickActiveView());
+
+    wc.on('found-in-page', (_e, result) => this.emit('find-result', id, result));
+
     wc.setWindowOpenHandler(({ url }) => {
       let targetHost = null;
       try { targetHost = new URL(url).hostname; } catch (_e) { /* ignore */ }
@@ -155,6 +162,10 @@ class ViewManager extends EventEmitter {
     // need the right-click menu wired up separately once Electron creates them.
     wc.on('did-create-window', (childWindow) => {
       attachEditContextMenu(childWindow.webContents, { withPageControls: true });
+      // Same stuck-input class as the notification-toast case above: an OAuth
+      // popup closing and returning focus to the main window doesn't always
+      // send a real blur/focus cycle either.
+      childWindow.on('closed', () => this.kickActiveView());
     });
 
     this.views.set(id, view);
@@ -310,6 +321,22 @@ class ViewManager extends EventEmitter {
     const { session } = require('electron');
     const ses = session.fromPartition(link.partition);
     return ses.clearStorageData().then(() => ses.clearCache());
+  }
+
+  findInPage(id, text, options) {
+    const view = this.views.get(id);
+    if (!view || view.webContents.isDestroyed()) return false;
+    if (!text) {
+      view.webContents.stopFindInPage('clearSelection');
+      return false;
+    }
+    view.webContents.findInPage(text, options);
+    return true;
+  }
+
+  stopFindInPage(id) {
+    const view = this.views.get(id);
+    if (view && !view.webContents.isDestroyed()) view.webContents.stopFindInPage('clearSelection');
   }
 
   openDevTools(id) {

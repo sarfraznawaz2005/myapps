@@ -4,6 +4,7 @@ import { openLinkDialog } from './dialog-link.js';
 
 const toolbarEl = document.getElementById('toolbar');
 let urlEditing = false;
+let findOpen = false;
 
 function iconHtml(name) { return icons[name] || ''; }
 
@@ -20,6 +21,13 @@ function render() {
     <button id="tb-copy" title="Copy URL">${iconHtml('copy')}</button>
     <button id="tb-external" title="Open in browser">${iconHtml('external')}</button>
     <button id="tb-more" title="More">${iconHtml('more')}</button>
+    <div id="find-bar">
+      <input id="find-input" type="text" placeholder="Find on page" />
+      <span id="find-count"></span>
+      <button id="find-prev" title="Previous match (Shift+Enter)">${iconHtml('chevronDown')}</button>
+      <button id="find-next" title="Next match (Enter)">${iconHtml('chevronDown')}</button>
+      <button id="find-close" title="Close (Esc)">${iconHtml('x')}</button>
+    </div>
   `;
 
   document.getElementById('tb-back').addEventListener('click', () => window.myApps.invoke('nav:go', 'back'));
@@ -32,6 +40,7 @@ function render() {
   document.getElementById('tb-copy').addEventListener('click', () => window.myApps.invoke('nav:copy-url'));
   document.getElementById('tb-external').addEventListener('click', () => window.myApps.invoke('nav:open-external'));
   document.getElementById('tb-more').addEventListener('click', (e) => openOverflowMenu(e.currentTarget));
+  wireFindBar();
 
   const urlInput = document.getElementById('tb-url');
   urlInput.addEventListener('focus', () => { urlEditing = true; urlInput.select(); });
@@ -132,4 +141,62 @@ export function initToolbar() {
 export function focusUrlBar() {
   const urlInput = document.getElementById('tb-url');
   if (urlInput) { urlInput.focus(); urlInput.select(); }
+}
+
+function wireFindBar() {
+  const input = document.getElementById('find-input');
+  const prevBtn = document.getElementById('find-prev');
+  const nextBtn = document.getElementById('find-next');
+  const closeBtn = document.getElementById('find-close');
+  if (!input) return;
+
+  const doFind = (forward, findNext) => {
+    const text = input.value;
+    const count = document.getElementById('find-count');
+    if (!text) {
+      window.myApps.invoke('link:find-stop');
+      if (count) count.textContent = '';
+      return;
+    }
+    window.myApps.invoke('link:find', text, { forward, findNext });
+  };
+
+  input.addEventListener('input', () => doFind(true, false));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); doFind(!e.shiftKey, true); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeFindBar(); }
+  });
+  prevBtn.addEventListener('click', () => doFind(false, true));
+  nextBtn.addEventListener('click', () => doFind(true, true));
+  closeBtn.addEventListener('click', () => closeFindBar());
+}
+
+export function openFindBar() {
+  const bar = document.getElementById('find-bar');
+  const input = document.getElementById('find-input');
+  if (!bar || !input) return;
+  findOpen = true;
+  bar.classList.add('open');
+  input.focus();
+  input.select();
+}
+
+export function closeFindBar() {
+  const bar = document.getElementById('find-bar');
+  const count = document.getElementById('find-count');
+  if (!bar || !findOpen) return;
+  findOpen = false;
+  bar.classList.remove('open');
+  if (count) count.textContent = '';
+  window.myApps.invoke('link:find-stop');
+}
+
+export function isFindBarOpen() {
+  return findOpen;
+}
+
+export function onFindResult(payload) {
+  if (!findOpen) return;
+  const count = document.getElementById('find-count');
+  if (count) count.textContent = payload.matches ? `${payload.activeMatchOrdinal}/${payload.matches}` : '0/0';
 }

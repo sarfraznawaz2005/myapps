@@ -376,6 +376,35 @@
 }
 #quick-switch .result.selected { background: var(--bg-active); }
 
+/* Find on page — lives inside #toolbar's own flex row (see toolbar.js),
+   not a floating overlay: the loaded site's WebContentsView is a native
+   layer stacked on top of everything below the toolbar strip (see the
+   toast comment further down), so a fixed-position bar down there would
+   render invisibly behind the site. */
+#find-bar {
+  display: none;
+  -webkit-app-region: no-drag;
+  align-items: center;
+  gap: 2px;
+  height: 26px;
+  padding: 0 4px 0 10px;
+  border-radius: 13px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#find-bar.open { display: flex; }
+#find-bar input {
+  width: 150px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 12.5px;
+}
+#find-bar input:focus { outline: none; }
+#find-count { font-size: 11.5px; color: var(--text-faint); min-width: 40px; text-align: center; flex-shrink: 0; }
+#find-prev svg { transform: rotate(180deg); }
+
 /* Toasts — the loaded site renders as a native view stacked on top of the
    whole content area (below the toolbar, right of the sidebar), so a toast
    positioned anywhere in that region is invisible no matter its z-index:

@@ -20,6 +20,16 @@ function escapeHtml(str) {
   return String(str || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Mirrors geolocation.js's parseManualLocation — kept in sync by hand since
+// the renderer can't require() the main-process file directly.
+function isValidLatLon(value) {
+  const parts = value.split(',').map((p) => p.trim());
+  if (parts.length !== 2) return false;
+  const [lat, lon] = parts.map(Number);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+  return lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+}
+
 function linkRowMarkup(l) {
   return `
     <div class="settings-link-row" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
@@ -107,6 +117,14 @@ function generalSection(s) {
         <input type="text" id="st-dns-custom-server" value="${escapeHtml(s.dnsCustomServer || '')}" placeholder="https://dns.example.com/dns-query" />
       </div>
       <div class="hint">Applies to every link opened in this app. Uses DNS-over-HTTPS, so lookups are encrypted.</div>
+    </div>
+    <div class="settings-section">
+      <h3>Location</h3>
+      <div class="field">
+        <label>Manual location (latitude,longitude)</label>
+        <input type="text" id="st-manual-location" value="${escapeHtml(s.manualLocation || '')}" placeholder="e.g. 40.7128,-74.0060" />
+      </div>
+      <div class="hint" id="st-manual-location-hint">Leave blank to ask Windows for your real location. If set, this exact position is sent to every site that asks — Windows is never asked.</div>
     </div>
   `;
 }
@@ -381,6 +399,23 @@ function wireSection(s) {
   if (dnsCustomEl) {
     dnsCustomEl.addEventListener('change', () => {
       window.myApps.invoke('settings:update', { dnsCustomServer: dnsCustomEl.value.trim() });
+    });
+  }
+
+  const manualLocEl = document.getElementById('st-manual-location');
+  const manualLocHint = document.getElementById('st-manual-location-hint');
+  const manualLocDefaultHint = 'Leave blank to ask Windows for your real location. If set, this exact position is sent to every site that asks — Windows is never asked.';
+  if (manualLocEl) {
+    manualLocEl.addEventListener('change', () => {
+      const value = manualLocEl.value.trim();
+      if (value && !isValidLatLon(value)) {
+        manualLocHint.textContent = 'Enter as latitude,longitude — e.g. 40.7128,-74.0060 (latitude -90 to 90, longitude -180 to 180).';
+        manualLocHint.style.color = 'var(--danger)';
+        return;
+      }
+      manualLocHint.textContent = manualLocDefaultHint;
+      manualLocHint.style.color = '';
+      window.myApps.invoke('settings:update', { manualLocation: value });
     });
   }
 

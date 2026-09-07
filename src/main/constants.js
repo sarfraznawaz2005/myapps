@@ -30,6 +30,8 @@ const CH = {
   LINK_TEST_EXPERT_RULE: 'link:test-expert-rule',
   LINK_PICK_ELEMENT: 'link:pick-element',
   LINK_PROBE_URL: 'link:probe-url',
+  LINK_FIND: 'link:find',
+  LINK_FIND_STOP: 'link:find-stop',
 
   USERSCRIPT_CREATE: 'userscript:create',
   USERSCRIPT_UPDATE: 'userscript:update',
@@ -76,6 +78,7 @@ const CH = {
   SHELL_TOAST: 'shell:toast',
   SHELL_OPEN_DIALOG: 'shell:open-dialog',
   SHELL_PERMISSION_PROMPT: 'shell:permission-prompt',
+  SHELL_FIND_RESULT: 'shell:find-result',
 
   // Link preload -> main
   LINK_BOOTSTRAP: 'link:bootstrap',

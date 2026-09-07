@@ -91,4 +91,16 @@ function getWindowsLocation() {
   return inFlight;
 }
 
-module.exports = { getWindowsLocation };
+// Parses the user's 'lat,lon' override from Settings. Returns null for
+// blank/malformed input so callers fall back to asking Windows.
+function parseManualLocation(value) {
+  if (!value || typeof value !== 'string') return null;
+  const parts = value.split(',').map((p) => p.trim());
+  if (parts.length !== 2) return null;
+  const [latitude, longitude] = parts.map(Number);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
+  return { latitude, longitude, accuracy: 10 };
+}
+
+module.exports = { getWindowsLocation, parseManualLocation };

@@ -49,6 +49,14 @@ function attachShortcuts(wc, { store, viewManager, mainWindow }) {
       return;
     }
 
+    if (ctrl && !input.shift && input.key.toLowerCase() === 'f') {
+      event.preventDefault();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(CH.SHELL_OPEN_DIALOG, { type: 'find' });
+      }
+      return;
+    }
+
     if (ctrl && !input.shift && input.key.toLowerCase() === 'k') {
       event.preventDefault();
       if (mainWindow && !mainWindow.isDestroyed()) {

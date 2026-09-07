@@ -123,6 +123,7 @@ export function update() {
   document.getElementById('tb-copy').disabled = !link;
   document.getElementById('tb-external').disabled = !link;
   document.getElementById('tb-reload').innerHTML = iconHtml(status.loading ? 'stop' : 'reload');
+  document.getElementById('load-bar').classList.toggle('active', !!status.loading);
 
   const urlInput = document.getElementById('tb-url');
   if (!urlEditing) {

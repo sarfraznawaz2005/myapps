@@ -264,6 +264,7 @@
   flex-direction: column;
   min-width: 0;
   background: var(--bg-content);
+  position: relative;
 }
 
 #toolbar {
@@ -290,6 +291,36 @@
 }
 #toolbar button:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
 #toolbar button:disabled { opacity: .35; cursor: default; }
+
+/* Positioned inside the toolbar's own band (0 to --toolbar-h), never below it —
+   the active link's page is a native view the OS draws on top of everything
+   past that line, so anything placed below it would be invisible. */
+#load-bar {
+  position: absolute;
+  top: calc(var(--toolbar-h) - 2px);
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: transparent;
+  overflow: hidden;
+  z-index: 5;
+  pointer-events: none;
+}
+#load-bar.active { background: color-mix(in srgb, var(--accent, #4f8cff) 25%, transparent); }
+#load-bar-fill {
+  height: 100%;
+  width: 30%;
+  background: var(--accent, #4f8cff);
+  transform: translateX(-100%);
+}
+#load-bar.active #load-bar-fill {
+  animation: load-bar-sweep 1.1s ease-in-out infinite;
+}
+@keyframes load-bar-sweep {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(120%); }
+  100% { transform: translateX(320%); }
+}
 
 #url-bar {
   -webkit-app-region: no-drag;

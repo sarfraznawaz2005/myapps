@@ -13,7 +13,6 @@ function genId() {
 function defaultSettings() {
   return {
     closeToTray: true,
-    minimizeToTray: true,
     startWithOS: false,
     startMinimized: false,
     showTrayIcon: true,

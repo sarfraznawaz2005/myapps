@@ -92,7 +92,6 @@ function generalSection(s) {
       ${checkboxRow('st-start-os', 'Start with Windows', s.startWithOS)}
       ${checkboxRow('st-start-min', 'Start minimized', s.startMinimized)}
       ${checkboxRow('st-close-tray', 'Close button minimizes to tray', s.closeToTray)}
-      ${checkboxRow('st-min-tray', 'Minimize button minimizes to tray', s.minimizeToTray)}
       ${checkboxRow('st-show-tray', 'Show tray icon', s.showTrayIcon)}
     </div>
     <div class="settings-section">
@@ -367,7 +366,6 @@ function wireSection(s) {
     'st-start-os': ['startWithOS', 'checked'],
     'st-start-min': ['startMinimized', 'checked'],
     'st-close-tray': ['closeToTray', 'checked'],
-    'st-min-tray': ['minimizeToTray', 'checked'],
     'st-show-tray': ['showTrayIcon', 'checked'],
     'st-open-ext': ['openExternalLinksInBrowser', 'checked'],
     'st-spellcheck': ['spellcheck', 'checked'],

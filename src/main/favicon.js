@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { app, net, nativeImage, session } = require('electron');
+const { app, net, nativeImage, session, BrowserWindow } = require('electron');
 
 function iconsDir() {
   return path.join(app.getPath('userData'), 'icons');
@@ -95,6 +95,32 @@ function isSvg(url) {
   return /\.svg(\?|#|$)/i.test(url) || url.startsWith('data:image/svg');
 }
 
+// nativeImage cannot decode SVG at all, unlike Chrome/Edge which render it
+// natively for the tab/address-bar favicon. So we draw the SVG ourselves in a
+// throwaway hidden window and capture the result as a bitmap.
+async function rasterizeSvg(svgBuffer) {
+  let win;
+  try {
+    win = new BrowserWindow({
+      show: false,
+      width: 64,
+      height: 64,
+      webPreferences: { offscreen: false, contextIsolation: true, sandbox: true },
+    });
+    const svgBase64 = svgBuffer.toString('base64');
+    const html = `<!doctype html><html><body style="margin:0;width:64px;height:64px">`
+      + `<img src="data:image/svg+xml;base64,${svgBase64}" style="width:64px;height:64px;display:block">`
+      + `</body></html>`;
+    await win.loadURL(`data:text/html;base64,${Buffer.from(html).toString('base64')}`);
+    const img = await win.webContents.capturePage();
+    return img.isEmpty() ? null : img;
+  } catch (_e) {
+    return null;
+  } finally {
+    if (win && !win.isDestroyed()) win.destroy();
+  }
+}
+
 function originFaviconGuess(url) {
   try {
     const u = new URL(url);
@@ -110,15 +136,15 @@ function writeCachedImage(linkId, img) {
   return cachedPath(linkId);
 }
 
-function cacheFaviconDataUrl(linkId, dataUrl) {
+async function cacheFaviconDataUrl(linkId, dataUrl) {
   // net.fetch()/session.fetch() cannot load data: URLs, so decode directly.
   try {
     const match = /^data:([^;,]*)(;base64)?,(.*)$/s.exec(dataUrl);
     if (!match) return null;
-    const [, , isBase64, payload] = match;
+    const [, mimeType, isBase64, payload] = match;
     const buf = isBase64 ? Buffer.from(payload, 'base64') : Buffer.from(decodeURIComponent(payload), 'utf8');
-    const img = nativeImage.createFromBuffer(buf);
-    if (img.isEmpty()) return null;
+    const img = /svg/i.test(mimeType) ? await rasterizeSvg(buf) : nativeImage.createFromBuffer(buf);
+    if (!img || img.isEmpty()) return null;
     return writeCachedImage(linkId, img);
   } catch (_e) {
     return null;
@@ -140,6 +166,9 @@ async function fetchAndCache(linkId, url, partition) {
     if (/\bico\b/i.test(contentType) || /\.ico(\?|#|$)/i.test(url)) {
       const decoded = decodeIco(buf);
       if (decoded) img = decoded.img;
+    }
+    if (!img && (/svg/i.test(contentType) || isSvg(url))) {
+      img = await rasterizeSvg(buf);
     }
     if (!img) {
       const direct = nativeImage.createFromBuffer(buf);
@@ -170,9 +199,9 @@ async function cacheFavicon(linkId, urls, partition) {
   if (originGuess && !ordered.includes(originGuess)) ordered.push(originGuess);
 
   for (const url of ordered) {
-    const result = url.startsWith('data:')
-      ? cacheFaviconDataUrl(linkId, url)
-      : await fetchAndCache(linkId, url, partition); // eslint-disable-line no-await-in-loop
+    const result = url.startsWith('data:') // eslint-disable-line no-await-in-loop
+      ? await cacheFaviconDataUrl(linkId, url)
+      : await fetchAndCache(linkId, url, partition);
     if (result) return result;
   }
   return null;

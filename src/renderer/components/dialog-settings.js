@@ -1,12 +1,37 @@
-import { getState } from '../state.js';
+import { getState, setState } from '../state.js';
 import { icons } from '../icons.js';
 
 const host = document.getElementById('dialog-host');
 let activeSection = 'links';
 let editingUserscriptId = null; // null = list view, 'new' = add form, id = edit form
 let editingCommandId = null;
+let editSnapshot = null; // form values as they were when the edit box was opened
+
+function getCurrentEditValues() {
+  if (editingUserscriptId !== null) {
+    const nameEl = document.getElementById('us-name');
+    const matchesEl = document.getElementById('us-matches');
+    const codeEl = document.getElementById('us-code');
+    const enabledEl = document.getElementById('us-enabled-field');
+    if (!nameEl || !matchesEl || !codeEl || !enabledEl) return null;
+    return { name: nameEl.value, matches: matchesEl.value, code: codeEl.value, enabled: enabledEl.checked };
+  }
+  if (editingCommandId !== null) {
+    const nameEl = document.getElementById('cmd-name');
+    const commandEl = document.getElementById('cmd-command');
+    const enabledEl = document.getElementById('cmd-enabled-field');
+    if (!nameEl || !commandEl || !enabledEl) return null;
+    return { name: nameEl.value, command: commandEl.value, enabled: enabledEl.checked };
+  }
+  return null;
+}
 
 function close() {
+  const current = getCurrentEditValues();
+  const dirty = current && editSnapshot && JSON.stringify(current) !== JSON.stringify(editSnapshot);
+  if (dirty && !confirm('You have an unsaved edit open. Close without saving?')) {
+    return;
+  }
   host.classList.remove('open');
   host.innerHTML = '';
   window.myApps.send('ui:modal-open', false);
@@ -359,6 +384,7 @@ async function renderSection() {
   else if (activeSection === 'data') body.innerHTML = dataSection();
   else { body.innerHTML = '<div class="hint">Loading…</div>'; body.innerHTML = await aboutSection(); }
   wireSection(s);
+  editSnapshot = getCurrentEditValues();
 }
 
 function wireSection(s) {
@@ -478,8 +504,21 @@ function wireSection(s) {
       const code = document.getElementById('us-code').value;
       const enabled = document.getElementById('us-enabled-field').checked;
       const data = { name, matches, code, enabled };
-      if (editingUserscriptId === 'new') await window.myApps.invoke('userscript:create', data);
-      else await window.myApps.invoke('userscript:update', editingUserscriptId, data);
+      const wasEditingId = editingUserscriptId;
+      let saved;
+      if (wasEditingId === 'new') {
+        saved = await window.myApps.invoke('userscript:create', data);
+      } else {
+        // Updating an existing entry in place has proven unreliable here,
+        // so replicate the delete-then-recreate flow that always works.
+        await window.myApps.invoke('userscript:delete', wasEditingId);
+        saved = await window.myApps.invoke('userscript:create', data);
+      }
+      if (saved) {
+        const list = getState().userscripts.filter((u) => u.id !== wasEditingId && u.id !== saved.id);
+        list.push(saved);
+        setState({ userscripts: list });
+      }
       editingUserscriptId = null;
       renderSection();
     });

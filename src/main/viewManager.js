@@ -190,8 +190,11 @@ class ViewManager extends EventEmitter {
       const prevView = this.views.get(prevId);
       if (prevView) {
         prevView.setVisible(false);
-        if (!prevView.webContents.isDestroyed()) prevView.webContents.setAudioMuted(true);
-        this.emit('deactivated', prevId);
+        const prevLink = this._link(prevId);
+        if (!prevLink || !prevLink.keepPlaying) {
+          if (!prevView.webContents.isDestroyed()) prevView.webContents.setAudioMuted(true);
+          this.emit('deactivated', prevId);
+        }
       }
     }
     this.activeId = id;
@@ -211,6 +214,8 @@ class ViewManager extends EventEmitter {
   // was once the window is shown again.
   suspendActiveMedia() {
     if (!this.activeId) return;
+    const link = this._link(this.activeId);
+    if (link && link.keepPlaying) return;
     const view = this.views.get(this.activeId);
     if (!view || view.webContents.isDestroyed()) return;
     view.webContents.setAudioMuted(true);

@@ -28,6 +28,7 @@ function defaultDraft() {
     icon: { mode: 'auto', path: null, url: null, fallbackLetter: null, fallbackColor: '#3b82f6' },
     userAgent: null,
     muted: false,
+    keepPlaying: false,
     openOnStartup: false,
     notifications: { enabled: true, sound: true, synthesize: 'auto' },
     navigation: { openExternal: false, allowMedia: false, mediaDecided: false, allowLocation: false, locationDecided: false, allowedPopupHosts: [] },
@@ -51,6 +52,7 @@ function draftFromLink(link) {
     icon: link.icon,
     userAgent: link.userAgent,
     muted: link.muted,
+    keepPlaying: link.keepPlaying,
     openOnStartup: link.openOnStartup,
     notifications: link.notifications,
     navigation: link.navigation,
@@ -96,6 +98,7 @@ function generalTabHtml() {
       </div>
     </div>
     <div class="checkbox-row"><input type="checkbox" id="lk-muted" ${d.muted ? 'checked' : ''} /><label for="lk-muted">Mute (never notify)</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="lk-keep-playing" ${d.keepPlaying ? 'checked' : ''} /><label for="lk-keep-playing">Keep playing audio/video when switching tabs or minimized to tray</label></div>
     <div class="checkbox-row"><input type="checkbox" id="lk-open-on-startup" ${d.openOnStartup ? 'checked' : ''} /><label for="lk-open-on-startup">Open on startup (loads automatically, no click needed)</label></div>
     <div class="checkbox-row"><input type="checkbox" id="lk-notif-enabled" ${d.notifications.enabled ? 'checked' : ''} /><label for="lk-notif-enabled">Enable notifications</label></div>
     <div class="checkbox-row"><input type="checkbox" id="lk-notif-sound" ${d.notifications.sound ? 'checked' : ''} /><label for="lk-notif-sound">Play sound</label></div>
@@ -270,6 +273,7 @@ function wireGeneralTab() {
   bind('lk-fallback-letter', 'input', (el) => el.value.trim() || null, (v) => { draft.icon.fallbackLetter = v; });
   bind('lk-fallback-color', 'input', (el) => el.value, (v) => { draft.icon.fallbackColor = v; });
   bind('lk-muted', 'change', (el) => el.checked, (v) => { draft.muted = v; });
+  bind('lk-keep-playing', 'change', (el) => el.checked, (v) => { draft.keepPlaying = v; });
   bind('lk-open-on-startup', 'change', (el) => el.checked, (v) => { draft.openOnStartup = v; });
   bind('lk-notif-enabled', 'change', (el) => el.checked, (v) => { draft.notifications.enabled = v; });
   bind('lk-notif-sound', 'change', (el) => el.checked, (v) => { draft.notifications.sound = v; });

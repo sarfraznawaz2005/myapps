@@ -66,6 +66,7 @@ function defaultLinkFields() {
     userAgent: null,
     zoom: 1,
     muted: false,
+    keepPlaying: false,
     enabled: true,
     openOnStartup: false,
     notifications: { enabled: true, synthesize: 'auto', sound: true },

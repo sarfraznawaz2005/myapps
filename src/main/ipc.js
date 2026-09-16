@@ -134,7 +134,16 @@ function initIpc(ctx) {
     }
   });
 
-  viewManager.on('active', (id) => sendToShell(ctx, CH.SHELL_ACTIVE, { linkId: id }));
+  viewManager.on('active', (id) => {
+    sendToShell(ctx, CH.SHELL_ACTIVE, { linkId: id });
+    const view = viewManager.getView(id);
+    if (view && !view.webContents.isDestroyed()) sendToAllFrames(view.webContents, CH.LINK_MEDIA_RESUME);
+  });
+
+  viewManager.on('deactivated', (id) => {
+    const view = viewManager.getView(id);
+    if (view && !view.webContents.isDestroyed()) sendToAllFrames(view.webContents, CH.LINK_MEDIA_PAUSE);
+  });
 
   viewManager.on('hibernated', (id) => {
     sendToShell(ctx, CH.SHELL_LINK_STATUS, { linkId: id, hibernated: true });

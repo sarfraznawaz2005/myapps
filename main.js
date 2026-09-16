@@ -136,6 +136,13 @@ if (!gotLock) {
 
     mainWindow.on('show', () => hibernationController.onWindowShow());
 
+    // Mute + pause the active link's media while the window is hidden (e.g.
+    // close-to-tray), and resume it once the window is shown again. Native
+    // 'hide'/'show' events fire for any hide()/show() call, including the
+    // tray path above and showAppWindow(), so this needs no extra wiring.
+    mainWindow.on('hide', () => viewManager.suspendActiveMedia());
+    mainWindow.on('show', () => viewManager.resumeActiveMedia());
+
     // A notification-based dot (see unreadTracker.reportNotified) only ever
     // clears on an explicit tab switch. If the user was already sitting on
     // that tab when the notification landed, switching tabs never happens —

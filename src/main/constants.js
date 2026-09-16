@@ -93,6 +93,8 @@ const CH = {
   LINK_NOTIF_CLICK_PREFIX: 'link:notif-click:',
   LINK_START_PICKER: 'link:start-picker',
   LINK_STOP_PICKER: 'link:stop-picker',
+  LINK_MEDIA_PAUSE: 'link:media-pause',
+  LINK_MEDIA_RESUME: 'link:media-resume',
 };
 
 function notifClickChannel(linkId) {

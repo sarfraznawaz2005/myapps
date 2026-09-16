@@ -166,6 +166,42 @@
   } catch (e) { /* some pages freeze navigator; ignore */ }
 
   // ---------------------------------------------------------------------
+  // Media auto-pause/resume — pauses <video>/<audio> when this tab/link
+  // is switched away from or the app is hidden to the tray, and resumes
+  // them when it's switched back to / restored. Only resumes elements WE
+  // paused — an element the user had already paused themselves (or pauses
+  // themselves while visible) is never touched, so a manual pause always
+  // sticks.
+  // ---------------------------------------------------------------------
+  var autoPausedMedia = new Set();
+
+  function pauseAllMedia() {
+    var els = document.querySelectorAll('video, audio');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (!el.paused && !el.ended) {
+        autoPausedMedia.add(el);
+        try { el.pause(); } catch (e) { /* ignore */ }
+      }
+    }
+  }
+
+  function resumeAllMedia() {
+    autoPausedMedia.forEach(function (el) {
+      if (el.isConnected && el.paused) {
+        try {
+          var p = el.play();
+          if (p && typeof p.catch === 'function') p.catch(function () { /* autoplay may be blocked; ignore */ });
+        } catch (e) { /* ignore */ }
+      }
+    });
+    autoPausedMedia.clear();
+  }
+
+  bridge.onMediaPause(pauseAllMedia);
+  bridge.onMediaResume(resumeAllMedia);
+
+  // ---------------------------------------------------------------------
   // Expert rule engine
   // ---------------------------------------------------------------------
   var expertObserver = null;

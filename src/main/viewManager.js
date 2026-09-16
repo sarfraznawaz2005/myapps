@@ -191,6 +191,7 @@ class ViewManager extends EventEmitter {
       if (prevView) {
         prevView.setVisible(false);
         if (!prevView.webContents.isDestroyed()) prevView.webContents.setAudioMuted(true);
+        this.emit('deactivated', prevId);
       }
     }
     this.activeId = id;
@@ -202,6 +203,26 @@ class ViewManager extends EventEmitter {
     if (link) this.store.updateLink(id, { lastActiveAt: Date.now() });
     this.emit('active', id);
     return true;
+  }
+
+  // Mutes + signals the active view's media to pause without switching which
+  // link is active — used when the whole window goes to the tray, so the
+  // hidden tab stops making sound/playing video but resumes exactly where it
+  // was once the window is shown again.
+  suspendActiveMedia() {
+    if (!this.activeId) return;
+    const view = this.views.get(this.activeId);
+    if (!view || view.webContents.isDestroyed()) return;
+    view.webContents.setAudioMuted(true);
+    this.emit('deactivated', this.activeId);
+  }
+
+  resumeActiveMedia() {
+    if (!this.activeId) return;
+    const view = this.views.get(this.activeId);
+    if (!view || view.webContents.isDestroyed()) return;
+    view.webContents.setAudioMuted(false);
+    this.emit('active', this.activeId);
   }
 
   setModalOpen(open) {

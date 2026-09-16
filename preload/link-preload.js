@@ -35,6 +35,8 @@ if (linkId) {
     onConfigUpdate: (cb) => ipcRenderer.on('link:config', (_e, cfg) => cb(cfg)),
     onStartPicker: (cb) => ipcRenderer.on('link:start-picker', () => cb()),
     onStopPicker: (cb) => ipcRenderer.on('link:stop-picker', () => cb()),
+    onMediaPause: (cb) => ipcRenderer.on('link:media-pause', () => cb()),
+    onMediaResume: (cb) => ipcRenderer.on('link:media-resume', () => cb()),
   });
 
   if (boot.source) {

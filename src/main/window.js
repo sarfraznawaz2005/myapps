@@ -43,7 +43,7 @@ function createMainWindow({ store, startHidden }) {
 
   const mainWindow = new BrowserWindow(winOpts);
   mainWindow.setMenuBarVisibility(false);
-  attachEditContextMenu(mainWindow.webContents);
+  attachEditContextMenu(mainWindow.webContents, { mainWindow });
 
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   // run.ps1/npm start launches straight from source (unpackaged); the built

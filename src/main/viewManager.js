@@ -77,7 +77,7 @@ class ViewManager extends EventEmitter {
     view.setBackgroundColor('#ffffff');
 
     const wc = view.webContents;
-    attachEditContextMenu(wc, { withPageControls: true });
+    attachEditContextMenu(wc, { withPageControls: true, mainWindow: this.mainWindow });
 
     wc.on('page-title-updated', (_e, title) => this.emit('title', id, title));
     wc.on('page-favicon-updated', (_e, favicons) => this.emit('favicon', id, favicons));
@@ -161,7 +161,7 @@ class ViewManager extends EventEmitter {
     // UA — it doesn't run our own window setup, so popups (OAuth logins, etc.)
     // need the right-click menu wired up separately once Electron creates them.
     wc.on('did-create-window', (childWindow) => {
-      attachEditContextMenu(childWindow.webContents, { withPageControls: true });
+      attachEditContextMenu(childWindow.webContents, { withPageControls: true, mainWindow: this.mainWindow });
       // Same stuck-input class as the notification-toast case above: an OAuth
       // popup closing and returning focus to the main window doesn't always
       // send a real blur/focus cycle either.

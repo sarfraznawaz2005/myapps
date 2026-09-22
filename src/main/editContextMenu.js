@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, Menu, clipboard, nativeImage } = require('electron');
+const { app, BrowserWindow, Menu, clipboard, nativeImage } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -99,6 +99,27 @@ function downloadImageToDisk(webContents, url) {
   });
 }
 
+// Opens a link in a brand-new window on the same session (cookies/login)
+// as the page the link was right-clicked on — so a logged-in site stays
+// logged in in the new window, same as a real browser's "Open in new
+// window". httpReferrer mirrors what a real click would send.
+function openLinkInNewWindow(webContents, url, mainWindow) {
+  const child = new BrowserWindow({
+    width: 1100,
+    height: 800,
+    autoHideMenuBar: true,
+    backgroundColor: '#ffffff',
+    icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
+    webPreferences: {
+      session: webContents.session,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  attachEditContextMenu(child.webContents, { withPageControls: true, mainWindow });
+  child.loadURL(url, { httpReferrer: webContents.getURL() });
+}
+
 // Electron ships no default right-click menu (Copy/Paste/Select All) —
 // unlike a real browser, that only exists if the app builds one itself via
 // the 'context-menu' event. Attach this to every webContents that should
@@ -178,6 +199,10 @@ function attachEditContextMenu(webContents, { withPageControls = false, mainWind
     if (params.linkURL) {
       if (template.length) template.push({ type: 'separator' });
       template.push({ label: 'Copy link address', click: () => clipboard.writeText(params.linkURL) });
+      template.push({
+        label: 'Open in new window',
+        click: () => openLinkInNewWindow(webContents, params.linkURL, mainWindow),
+      });
     }
 
     if (!template.length && withPageControls) {

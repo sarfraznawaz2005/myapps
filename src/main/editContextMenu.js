@@ -99,11 +99,40 @@ function downloadImageToDisk(webContents, url) {
   });
 }
 
+// Wires window.open()/target=_blank handling on a webContents so every
+// window it spawns — and every window THAT spawns, and so on — inherits
+// `ses` and gets the same right-click menu. Recursing on 'did-create-window'
+// matters: without it, only the FIRST popup gets the shared session: a
+// popup opened from *within* a popup (e.g. a story viewer opening the next
+// story in its own window) falls back to Electron's default handler, which
+// creates a brand-new window with a fresh, empty session — so a logged-in
+// site suddenly shows logged out two windows deep.
+// `shouldAllow(url)` can veto a popup (return false to deny it); omitted,
+// every popup is allowed.
+function wirePopupSessions(webContents, ses, mainWindow, shouldAllow = () => true) {
+  webContents.setWindowOpenHandler(({ url }) => {
+    if (!shouldAllow(url)) return { action: 'deny' };
+    return {
+      action: 'allow',
+      overrideBrowserWindowOptions: {
+        autoHideMenuBar: true,
+        backgroundColor: '#ffffff',
+        webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false },
+      },
+    };
+  });
+  webContents.on('did-create-window', (childWindow) => {
+    attachEditContextMenu(childWindow.webContents, { withPageControls: true, mainWindow });
+    wirePopupSessions(childWindow.webContents, ses, mainWindow, shouldAllow);
+  });
+}
+
 // Opens a link in a brand-new window on the same session (cookies/login)
 // as the page the link was right-clicked on — so a logged-in site stays
 // logged in in the new window, same as a real browser's "Open in new
 // window". httpReferrer mirrors what a real click would send.
 function openLinkInNewWindow(webContents, url, mainWindow) {
+  const ses = webContents.session;
   const child = new BrowserWindow({
     width: 1100,
     height: 800,
@@ -111,12 +140,13 @@ function openLinkInNewWindow(webContents, url, mainWindow) {
     backgroundColor: '#ffffff',
     icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     webPreferences: {
-      session: webContents.session,
+      session: ses,
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
   attachEditContextMenu(child.webContents, { withPageControls: true, mainWindow });
+  wirePopupSessions(child.webContents, ses, mainWindow);
   child.loadURL(url, { httpReferrer: webContents.getURL() });
 }
 
@@ -220,4 +250,4 @@ function attachEditContextMenu(webContents, { withPageControls = false, mainWind
   });
 }
 
-module.exports = { attachEditContextMenu };
+module.exports = { attachEditContextMenu, wirePopupSessions };

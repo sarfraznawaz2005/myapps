@@ -4,7 +4,7 @@ const path = require('path');
 const { EventEmitter } = require('events');
 const { WebContentsView, shell } = require('electron');
 const { getLinkSession } = require('./sessions');
-const { attachEditContextMenu } = require('./editContextMenu');
+const { attachEditContextMenu, wirePopupSessions } = require('./editContextMenu');
 const { TOOLBAR_HEIGHT, SIDEBAR_COLLAPSED_WIDTH } = require('./constants');
 
 const LINK_PRELOAD = path.join(__dirname, '..', '..', 'preload', 'link-preload.js');
@@ -53,7 +53,7 @@ class ViewManager extends EventEmitter {
     // throttling to it too (instead of unread/notifications, which default
     // true on every link) means turning it off actually lightens the tab
     // immediately, not just after the idle-hibernate timer eventually fires.
-    const backgroundThrottling = !(link.hibernate && link.hibernate.keepAwake);
+    const keepAwake = !!(link.hibernate && link.hibernate.keepAwake);
 
     view = new WebContentsView({
       webPreferences: {
@@ -65,7 +65,17 @@ class ViewManager extends EventEmitter {
         // the expert-rule engine, element picker, etc.) never runs inside
         // a site's own iframes, only its outer page.
         nodeIntegrationInSubFrames: true,
-        backgroundThrottling,
+        // Always starts false, even for links that will end up throttled —
+        // a view is created hidden (activate() shows it later) and "open on
+        // startup" links load while still in the background, so throttling
+        // from creation means Chromium starts rate-limiting the page's
+        // timers/rAF before it has ever painted a single frame. Several SPAs
+        // (Snapchat included) pause their own initial render when they think
+        // they're backgrounded and never resume it, leaving a permanently
+        // blank tab until a manual reload restarts the bootstrap while
+        // visible. Real throttling is applied afterwards, dynamically, once
+        // the page has actually painted once (see did-finish-load below).
+        backgroundThrottling: false,
         spellcheck: !!this.store.getState().settings.spellcheck,
         additionalArguments: [`--link-id=${id}`],
       },
@@ -104,13 +114,33 @@ class ViewManager extends EventEmitter {
     wc.on('did-stop-loading', emitStatus);
     wc.on('did-navigate', emitStatus);
     wc.on('did-navigate-in-page', emitStatus);
+    // A failed main-frame load gets one silent retry before it's reported as
+    // a real error — cold-start bursts of simultaneous connections across
+    // several tabs can trip transient network errors (e.g. a site's own
+    // follow-up redirect briefly failing while other tabs are still mid-
+    // handshake), which otherwise leaves the tab blank until the user
+    // manually reloads. Resets on every successful load, so a later,
+    // separate failure still gets its own retry.
+    let failRetried = false;
     wc.on('did-finish-load', () => {
+      failRetried = false;
       try { wc.setZoomFactor(link.zoom || 1); } catch (_e) { /* ignore */ }
       emitStatus();
+      // Safe to throttle now that the page has painted at least once — but
+      // only if it's sitting in the background right now; activate()/its
+      // prevView branch keep this in sync as the active tab changes later.
+      if (!keepAwake && id !== this.activeId) {
+        try { wc.setBackgroundThrottling(true); } catch (_e) { /* ignore */ }
+      }
     });
     wc.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
       if (!isMainFrame) return;
       if (code === -3) return; // ERR_ABORTED, usually a redirect/cancel, not a real failure
+      if (!failRetried) {
+        failRetried = true;
+        setTimeout(() => { if (!wc.isDestroyed()) wc.reload(); }, 1000);
+        return;
+      }
       this.emit('status', id, { loading: false, error: desc || `Failed to load (${code})` });
     });
     wc.on('render-process-gone', (_e, details) => {
@@ -125,7 +155,12 @@ class ViewManager extends EventEmitter {
 
     wc.on('found-in-page', (_e, result) => this.emit('find-result', id, result));
 
-    wc.setWindowOpenHandler(({ url }) => {
+    // OAuth popups: inherit the same partition/session and cleaned UA, never
+    // noopener, so cookies set by the popup are visible to the opener — and
+    // wirePopupSessions re-applies this same check+session to every window a
+    // popup itself opens (a story viewer's "next story" window, etc.), not
+    // just the first one, so a login never silently drops a level deep.
+    const shouldAllowPopup = (url) => {
       let targetHost = null;
       try { targetHost = new URL(url).hostname; } catch (_e) { /* ignore */ }
       let originHost = null;
@@ -139,32 +174,16 @@ class ViewManager extends EventEmitter {
       const explicitlyAllowed = targetHost && allowedHosts.some(
         (h) => targetHost === h || targetHost.endsWith(`.${h}`)
       );
-      if (sameFamily || explicitlyAllowed || allowedHosts.length === 0) {
-        // OAuth popups: inherit the same partition/session and cleaned UA,
-        // never noopener, so cookies set by the popup are visible to the opener.
-        return {
-          action: 'allow',
-          overrideBrowserWindowOptions: {
-            autoHideMenuBar: true,
-            backgroundColor: '#ffffff',
-            webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false },
-          },
-        };
-      }
-      if (link.navigation && link.navigation.openExternal) {
-        shell.openExternal(url);
-      }
-      return { action: 'deny' };
-    });
+      if (sameFamily || explicitlyAllowed || allowedHosts.length === 0) return true;
+      if (link.navigation && link.navigation.openExternal) shell.openExternal(url);
+      return false;
+    };
+    wirePopupSessions(wc, ses, this.mainWindow, shouldAllowPopup);
 
-    // setWindowOpenHandler's overrideBrowserWindowOptions only covers session/
-    // UA — it doesn't run our own window setup, so popups (OAuth logins, etc.)
-    // need the right-click menu wired up separately once Electron creates them.
+    // Same stuck-input class as the notification-toast case above: an OAuth
+    // popup closing and returning focus to the main window doesn't always
+    // send a real blur/focus cycle either.
     wc.on('did-create-window', (childWindow) => {
-      attachEditContextMenu(childWindow.webContents, { withPageControls: true, mainWindow: this.mainWindow });
-      // Same stuck-input class as the notification-toast case above: an OAuth
-      // popup closing and returning focus to the main window doesn't always
-      // send a real blur/focus cycle either.
       childWindow.on('closed', () => this.kickActiveView());
     });
 
@@ -195,10 +214,20 @@ class ViewManager extends EventEmitter {
           if (!prevView.webContents.isDestroyed()) prevView.webContents.setAudioMuted(true);
           this.emit('deactivated', prevId);
         }
+        // Only safe to throttle a tab once it's actually been backgrounded —
+        // matches the did-finish-load guard in ensureView().
+        const prevKeepAwake = !!(prevLink && prevLink.hibernate && prevLink.hibernate.keepAwake);
+        if (!prevKeepAwake && !prevView.webContents.isDestroyed()) {
+          try { prevView.webContents.setBackgroundThrottling(true); } catch (_e) { /* ignore */ }
+        }
       }
     }
     this.activeId = id;
     view.webContents.setAudioMuted(false);
+    // The visible tab must never be throttled, regardless of how it got here.
+    if (!view.webContents.isDestroyed()) {
+      try { view.webContents.setBackgroundThrottling(false); } catch (_e) { /* ignore */ }
+    }
     this._syncActiveVisibility();
     this.layout();
     this.store.updateUi({ lastActiveLinkId: id });

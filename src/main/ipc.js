@@ -515,8 +515,22 @@ function initIpc(ctx) {
     // Pre-load the rest of "open on startup" links in the background — this
     // only loads their view (so they're instant when clicked), it does not
     // switch the visible tab away from whatever was just activated above.
+    // Staggered, not fired all at once: a burst of simultaneous connections
+    // right at cold app startup (Windows' network stack is still warming up)
+    // can trip transient failures — e.g. one link's own follow-up redirect
+    // failing with ERR_ADDRESS_INVALID because several other tabs were still
+    // mid-handshake at that exact moment — leaving that tab blank until a
+    // manual reload. Spacing the starts out avoids piling every tab's first
+    // connection into the same instant.
+    let staggerDelay = 0;
     for (const link of links) {
-      if (link.openOnStartup && !viewManager.isLoaded(link.id)) viewManager.ensureView(link.id);
+      if (link.openOnStartup && !viewManager.isLoaded(link.id)) {
+        const linkId = link.id;
+        setTimeout(() => {
+          if (!viewManager.isLoaded(linkId)) viewManager.ensureView(linkId);
+        }, staggerDelay);
+        staggerDelay += 400;
+      }
     }
     recomputeAggregate(ctx);
   });

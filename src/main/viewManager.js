@@ -53,7 +53,7 @@ class ViewManager extends EventEmitter {
     // throttling to it too (instead of unread/notifications, which default
     // true on every link) means turning it off actually lightens the tab
     // immediately, not just after the idle-hibernate timer eventually fires.
-    const keepAwake = !!(link.hibernate && link.hibernate.keepAwake);
+    const backgroundThrottling = !(link.hibernate && link.hibernate.keepAwake);
 
     view = new WebContentsView({
       webPreferences: {
@@ -65,17 +65,7 @@ class ViewManager extends EventEmitter {
         // the expert-rule engine, element picker, etc.) never runs inside
         // a site's own iframes, only its outer page.
         nodeIntegrationInSubFrames: true,
-        // Always starts false, even for links that will end up throttled —
-        // a view is created hidden (activate() shows it later) and "open on
-        // startup" links load while still in the background, so throttling
-        // from creation means Chromium starts rate-limiting the page's
-        // timers/rAF before it has ever painted a single frame. Several SPAs
-        // (Snapchat included) pause their own initial render when they think
-        // they're backgrounded and never resume it, leaving a permanently
-        // blank tab until a manual reload restarts the bootstrap while
-        // visible. Real throttling is applied afterwards, dynamically, once
-        // the page has actually painted once (see did-finish-load below).
-        backgroundThrottling: false,
+        backgroundThrottling,
         spellcheck: !!this.store.getState().settings.spellcheck,
         additionalArguments: [`--link-id=${id}`],
       },
@@ -114,31 +104,22 @@ class ViewManager extends EventEmitter {
     wc.on('did-stop-loading', emitStatus);
     wc.on('did-navigate', emitStatus);
     wc.on('did-navigate-in-page', emitStatus);
-    // A failed main-frame load gets one silent retry before it's reported as
-    // a real error — cold-start bursts of simultaneous connections across
-    // several tabs can trip transient network errors (e.g. a site's own
-    // follow-up redirect briefly failing while other tabs are still mid-
-    // handshake), which otherwise leaves the tab blank until the user
-    // manually reloads. Resets on every successful load, so a later,
-    // separate failure still gets its own retry.
-    let failRetried = false;
+    // Only the very first load of a view gets one silent retry. Once a page
+    // has loaded, a failed navigation usually leaves the working page on
+    // screen (e.g. a live Teams meeting), so reloading then would destroy it.
+    let hasLoaded = false;
+    let firstLoadRetried = false;
     wc.on('did-finish-load', () => {
-      failRetried = false;
+      hasLoaded = true;
       try { wc.setZoomFactor(link.zoom || 1); } catch (_e) { /* ignore */ }
       emitStatus();
-      // Safe to throttle now that the page has painted at least once — but
-      // only if it's sitting in the background right now; activate()/its
-      // prevView branch keep this in sync as the active tab changes later.
-      if (!keepAwake && id !== this.activeId) {
-        try { wc.setBackgroundThrottling(true); } catch (_e) { /* ignore */ }
-      }
     });
     wc.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
       if (!isMainFrame) return;
       if (code === -3) return; // ERR_ABORTED, usually a redirect/cancel, not a real failure
-      if (!failRetried) {
-        failRetried = true;
-        setTimeout(() => { if (!wc.isDestroyed()) wc.reload(); }, 1000);
+      if (!hasLoaded && !firstLoadRetried) {
+        firstLoadRetried = true;
+        setTimeout(() => { if (!wc.isDestroyed() && !hasLoaded) wc.loadURL(link.url); }, 1000);
         return;
       }
       this.emit('status', id, { loading: false, error: desc || `Failed to load (${code})` });
@@ -214,20 +195,10 @@ class ViewManager extends EventEmitter {
           if (!prevView.webContents.isDestroyed()) prevView.webContents.setAudioMuted(true);
           this.emit('deactivated', prevId);
         }
-        // Only safe to throttle a tab once it's actually been backgrounded —
-        // matches the did-finish-load guard in ensureView().
-        const prevKeepAwake = !!(prevLink && prevLink.hibernate && prevLink.hibernate.keepAwake);
-        if (!prevKeepAwake && !prevView.webContents.isDestroyed()) {
-          try { prevView.webContents.setBackgroundThrottling(true); } catch (_e) { /* ignore */ }
-        }
       }
     }
     this.activeId = id;
     view.webContents.setAudioMuted(false);
-    // The visible tab must never be throttled, regardless of how it got here.
-    if (!view.webContents.isDestroyed()) {
-      try { view.webContents.setBackgroundThrottling(false); } catch (_e) { /* ignore */ }
-    }
     this._syncActiveVisibility();
     this.layout();
     this.store.updateUi({ lastActiveLinkId: id });

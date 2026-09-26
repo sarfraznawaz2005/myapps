@@ -1,6 +1,7 @@
 import { getState, getLink } from '../state.js';
 import { icons } from '../icons.js';
 import { openLinkDialog } from './dialog-link.js';
+import { openNoteDialog } from './dialog-note.js';
 
 const toolbarEl = document.getElementById('toolbar');
 let urlEditing = false;
@@ -18,6 +19,7 @@ function render() {
       <span class="lock">${iconHtml('lock')}</span>
       <input id="tb-url" type="text" placeholder="Select a link…" />
     </div>
+    <button id="tb-note" title="Add note">${iconHtml('note')}</button>
     <button id="tb-copy" title="Copy URL">${iconHtml('copy')}</button>
     <button id="tb-external" title="Open in browser">${iconHtml('external')}</button>
     <button id="tb-more" title="More">${iconHtml('more')}</button>
@@ -37,6 +39,7 @@ function render() {
     window.myApps.invoke('nav:go', status.loading ? 'stop' : 'reload');
   });
   document.getElementById('tb-home').addEventListener('click', () => window.myApps.invoke('nav:go', 'home'));
+  document.getElementById('tb-note').addEventListener('click', () => openNoteDialog(currentUrl()));
   document.getElementById('tb-copy').addEventListener('click', () => window.myApps.invoke('nav:copy-url'));
   document.getElementById('tb-external').addEventListener('click', () => window.myApps.invoke('nav:open-external'));
   document.getElementById('tb-more').addEventListener('click', (e) => openOverflowMenu(e.currentTarget));
@@ -57,6 +60,15 @@ function render() {
 
   update();
 }
+
+// Sent by the main process's right-click menu ("Paste and Go" on the URL bar).
+window.addEventListener('__myapps-paste-and-go', (e) => {
+  const text = typeof e.detail === 'string' ? e.detail.trim() : '';
+  if (!text) return;
+  window.myApps.invoke('nav:navigate', text);
+  const urlInput = document.getElementById('tb-url');
+  if (urlInput) urlInput.blur();
+});
 
 function openOverflowMenu(anchor) {
   const id = getState().activeLinkId;
@@ -110,6 +122,16 @@ function openOverflowMenu(anchor) {
   }, 0);
 }
 
+// The page URL the user sees now (after in-page navigation), else the link's home URL.
+function currentUrl() {
+  const state = getState();
+  const id = state.activeLinkId;
+  const link = id ? getLink(id) : null;
+  if (!link) return '';
+  const status = state.linkStatus[id] || {};
+  return status.url || link.url || '';
+}
+
 export function update() {
   if (!document.getElementById('tb-back')) return; // not rendered yet
   const state = getState();
@@ -121,6 +143,13 @@ export function update() {
   document.getElementById('tb-forward').disabled = !status.canGoForward;
   document.getElementById('tb-home').disabled = !link;
   document.getElementById('tb-copy').disabled = !link;
+  const noteBtn = document.getElementById('tb-note');
+  const url = currentUrl();
+  const note = url ? state.notes[url] : null;
+  noteBtn.disabled = !url;
+  noteBtn.innerHTML = iconHtml(note ? 'noteFilled' : 'note');
+  noteBtn.title = note ? `Note: ${note.text.length > 200 ? `${note.text.slice(0, 200)}…` : note.text}` : 'Add note';
+  noteBtn.style.color = note ? 'var(--accent)' : '';
   document.getElementById('tb-external').disabled = !link;
   document.getElementById('tb-reload').innerHTML = iconHtml(status.loading ? 'stop' : 'reload');
   document.getElementById('load-bar').classList.toggle('active', !!status.loading);

@@ -9,6 +9,7 @@ let state = {
   links: [],
   userscripts: [],
   commands: [],
+  notes: {}, // page URL -> { text, updatedAt }
   unread: {}, // linkId -> { count, activity, source, stale }
   aggregate: 0,
   activeLinkId: null,

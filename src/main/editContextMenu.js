@@ -160,9 +160,23 @@ function openLinkInNewWindow(webContents, url, mainWindow) {
 // right-clicking blank space on a loaded link's page (no text field, no
 // selection, no link under the cursor) still shows a menu, like a real
 // browser — instead of showing nothing at all.
-function attachEditContextMenu(webContents, { withPageControls = false, mainWindow = null } = {}) {
+//
+// withUrlBarPasteAndGo adds "Paste and Go" when the right-click lands on the
+// shell toolbar's URL input (#tb-url). Only the shell sets it, so a site's
+// own element with that id never gets the item.
+function attachEditContextMenu(webContents, { withPageControls = false, withUrlBarPasteAndGo = false, mainWindow = null } = {}) {
   webContents.on('context-menu', async (_event, params) => {
     const template = [];
+
+    let onUrlBar = false;
+    if (withUrlBarPasteAndGo && params.isEditable) {
+      try {
+        onUrlBar = await webContents.executeJavaScript(`(function () {
+          const el = document.elementFromPoint(${params.x}, ${params.y});
+          return !!el && el.id === 'tb-url';
+        })()`);
+      } catch (_e) { /* ignore */ }
+    }
 
     // If Chromium didn't recognize an image directly under the cursor,
     // check every layer actually stacked at that point — some sites put an
@@ -196,7 +210,21 @@ function attachEditContextMenu(webContents, { withPageControls = false, mainWind
       template.push(
         { label: 'Cut', role: 'cut', enabled: params.editFlags.canCut },
         { label: 'Copy', role: 'copy', enabled: params.editFlags.canCopy },
-        { label: 'Paste', role: 'paste', enabled: params.editFlags.canPaste },
+        { label: 'Paste', role: 'paste', enabled: params.editFlags.canPaste }
+      );
+      if (onUrlBar) {
+        const pasted = clipboard.readText().trim();
+        template.push({
+          label: 'Paste and Go',
+          enabled: !!pasted,
+          // The toolbar handles the event, so it navigates the same way as
+          // typing in the URL bar and pressing Enter.
+          click: () => webContents.executeJavaScript(
+            `window.dispatchEvent(new CustomEvent('__myapps-paste-and-go', { detail: ${JSON.stringify(pasted)} }))`
+          ).catch(() => {}),
+        });
+      }
+      template.push(
         { type: 'separator' },
         { label: 'Select All', role: 'selectAll', enabled: params.editFlags.canSelectAll }
       );

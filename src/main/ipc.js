@@ -394,6 +394,8 @@ function initIpc(ctx) {
   ipcMain.handle(CH.COMMAND_UPDATE, (_event, id, patch) => store.updateCommand(id, patch));
   ipcMain.handle(CH.COMMAND_DELETE, (_event, id) => store.deleteCommand(id));
 
+  ipcMain.handle(CH.NOTE_SET, (_event, url, text) => store.setNote(url, text));
+
   ipcMain.handle(CH.GROUP_CREATE, (_event, data) => store.createGroup(data));
   ipcMain.handle(CH.GROUP_UPDATE, (_event, id, patch) => store.updateGroup(id, patch));
   ipcMain.handle(CH.GROUP_DELETE, (_event, id, opts) => store.deleteGroup(id, opts));

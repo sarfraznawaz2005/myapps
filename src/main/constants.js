@@ -41,6 +41,8 @@ const CH = {
   COMMAND_UPDATE: 'command:update',
   COMMAND_DELETE: 'command:delete',
 
+  NOTE_SET: 'note:set',
+
   GROUP_CREATE: 'group:create',
   GROUP_UPDATE: 'group:update',
   GROUP_DELETE: 'group:delete',

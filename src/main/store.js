@@ -57,6 +57,7 @@ function defaultState() {
     links: [],
     userscripts: [],
     commands: [],
+    notes: {}, // exact page URL -> { text, updatedAt }
   };
 }
 
@@ -162,6 +163,7 @@ class Store {
       parsed.links = Array.isArray(parsed.links) ? parsed.links.map((l) => deepMerge(defaultLinkFields(), l)) : [];
       parsed.userscripts = Array.isArray(parsed.userscripts) ? parsed.userscripts : [];
       parsed.commands = Array.isArray(parsed.commands) ? parsed.commands : [];
+      parsed.notes = parsed.notes && typeof parsed.notes === 'object' && !Array.isArray(parsed.notes) ? parsed.notes : {};
       this.state = parsed;
     } catch (err) {
       // Corrupt file: preserve it for forensics, fall back to defaults.
@@ -376,6 +378,7 @@ class Store {
     parsed.links = Array.isArray(parsed.links) ? parsed.links.map((l) => deepMerge(defaultLinkFields(), l)) : [];
     parsed.userscripts = Array.isArray(parsed.userscripts) ? parsed.userscripts : [];
     parsed.commands = Array.isArray(parsed.commands) ? parsed.commands : [];
+    parsed.notes = parsed.notes && typeof parsed.notes === 'object' && !Array.isArray(parsed.notes) ? parsed.notes : {};
     this.state = parsed;
     this.saveImmediate();
     return this.state;
@@ -450,6 +453,21 @@ class Store {
     const [removed] = this.state.commands.splice(idx, 1);
     this.save();
     return removed;
+  }
+
+  // ---- notes ----
+
+  // One note per exact URL. Empty text removes the note.
+  setNote(url, text) {
+    if (typeof url !== 'string' || !url) return null;
+    const trimmed = typeof text === 'string' ? text.trim() : '';
+    if (trimmed) {
+      this.state.notes[url] = { text: trimmed, updatedAt: Date.now() };
+    } else {
+      delete this.state.notes[url];
+    }
+    this.save();
+    return this.state.notes[url] || null;
   }
 }
 

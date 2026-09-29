@@ -7,7 +7,7 @@
 }
 
 #shell.collapsed {
-  grid-template-columns: 56px 1fr;
+  grid-template-columns: 76px 1fr;
 }
 
 /* ---------- Sidebar ---------- */
@@ -201,6 +201,8 @@
 #sidebar.collapsed-mode .link-name,
 #sidebar.collapsed-mode .group-header .name,
 #sidebar.collapsed-mode #sidebar-header .brand-add span { display: none; }
+#sidebar.collapsed-mode .link-row { gap: 6px; padding: 0 6px; }
+#sidebar.collapsed-mode .link-status { margin-left: auto; }
 #sidebar.collapsed-mode #sidebar-header { justify-content: center; padding: 0; }
 #sidebar.collapsed-mode #sidebar-header .brand-add {
   flex: 0 0 auto;

@@ -95,10 +95,12 @@ function isSvg(url) {
   return /\.svg(\?|#|$)/i.test(url) || url.startsWith('data:image/svg');
 }
 
-// nativeImage cannot decode SVG at all, unlike Chrome/Edge which render it
-// natively for the tab/address-bar favicon. So we draw the SVG ourselves in a
-// throwaway hidden window and capture the result as a bitmap.
-async function rasterizeSvg(svgBuffer) {
+// nativeImage only decodes PNG/JPEG — not SVG, WebP (e.g. WhatsApp), AVIF or
+// GIF — unlike Chrome/Edge which render all of them natively for the tab
+// favicon. So we let Chromium decode the image in a throwaway hidden window,
+// draw it onto a canvas and read it back as PNG (keeps transparency, unlike
+// capturePage which flattens onto the white page background).
+async function rasterizeImage(buf, mimeType) {
   let win;
   try {
     win = new BrowserWindow({
@@ -107,18 +109,39 @@ async function rasterizeSvg(svgBuffer) {
       height: 64,
       webPreferences: { offscreen: false, contextIsolation: true, sandbox: true },
     });
-    const svgBase64 = svgBuffer.toString('base64');
-    const html = `<!doctype html><html><body style="margin:0;width:64px;height:64px">`
-      + `<img src="data:image/svg+xml;base64,${svgBase64}" style="width:64px;height:64px;display:block">`
-      + `</body></html>`;
-    await win.loadURL(`data:text/html;base64,${Buffer.from(html).toString('base64')}`);
-    const img = await win.webContents.capturePage();
+    await win.loadURL('data:text/html,<!doctype html><html><body></body></html>');
+    const src = `data:${mimeType};base64,${buf.toString('base64')}`;
+    const pngDataUrl = await win.webContents.executeJavaScript(`new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const c = document.createElement('canvas');
+          c.width = 64;
+          c.height = 64;
+          c.getContext('2d').drawImage(img, 0, 0, 64, 64);
+          resolve(c.toDataURL('image/png'));
+        } catch (_e) { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = ${JSON.stringify(src)};
+    })`);
+    if (!pngDataUrl) return null;
+    const img = nativeImage.createFromDataURL(pngDataUrl);
     return img.isEmpty() ? null : img;
   } catch (_e) {
     return null;
   } finally {
     if (win && !win.isDestroyed()) win.destroy();
   }
+}
+
+function guessImageMime(contentType, url) {
+  const ct = contentType.split(';')[0].trim().toLowerCase();
+  if (ct.startsWith('image/')) return ct;
+  if (isSvg(url)) return 'image/svg+xml';
+  // Chromium sniffs raster formats from the bytes, so the exact type
+  // doesn't matter for anything but SVG.
+  return 'image/png';
 }
 
 function originFaviconGuess(url) {
@@ -143,7 +166,8 @@ async function cacheFaviconDataUrl(linkId, dataUrl) {
     if (!match) return null;
     const [, mimeType, isBase64, payload] = match;
     const buf = isBase64 ? Buffer.from(payload, 'base64') : Buffer.from(decodeURIComponent(payload), 'utf8');
-    const img = /svg/i.test(mimeType) ? await rasterizeSvg(buf) : nativeImage.createFromBuffer(buf);
+    let img = /svg/i.test(mimeType) ? null : nativeImage.createFromBuffer(buf);
+    if (!img || img.isEmpty()) img = await rasterizeImage(buf, mimeType || 'image/png');
     if (!img || img.isEmpty()) return null;
     return writeCachedImage(linkId, img);
   } catch (_e) {
@@ -168,7 +192,7 @@ async function fetchAndCache(linkId, url, partition) {
       if (decoded) img = decoded.img;
     }
     if (!img && (/svg/i.test(contentType) || isSvg(url))) {
-      img = await rasterizeSvg(buf);
+      img = await rasterizeImage(buf, 'image/svg+xml');
     }
     if (!img) {
       const direct = nativeImage.createFromBuffer(buf);
@@ -177,6 +201,10 @@ async function fetchAndCache(linkId, url, partition) {
     if (!img) {
       const decoded = decodeIco(buf); // e.g. server sent .ico without a proper content-type
       if (decoded) img = decoded.img;
+    }
+    if (!img) {
+      // WebP/AVIF/GIF etc. — formats only Chromium itself can decode.
+      img = await rasterizeImage(buf, guessImageMime(contentType, url));
     }
 
     if (!img || img.isEmpty()) return null;

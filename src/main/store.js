@@ -43,6 +43,7 @@ function defaultUi() {
     sidebarWidth: 240,
     sidebarCollapsed: false,
     sidebarFooterOpen: false,
+    ungroupedCollapsed: false,
     lastActiveLinkId: null,
     showToolbar: true,
   };

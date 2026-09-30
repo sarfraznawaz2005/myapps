@@ -488,6 +488,7 @@ function initIpc(ctx) {
         sidebarCollapsed: payload.sidebarCollapsed,
         showToolbar: payload.showToolbar,
         sidebarFooterOpen: payload.sidebarFooterOpen,
+        ungroupedCollapsed: payload.ungroupedCollapsed,
       });
     }
     viewManager.layout();

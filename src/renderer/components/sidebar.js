@@ -16,7 +16,6 @@ const btnSettings = document.getElementById('btn-settings');
 const btnEmptyAdd = document.getElementById('btn-empty-add');
 
 let dragging = null; // { type: 'link'|'group', id }
-let ungroupedCollapsed = false;
 const UNGROUPED_ID = '__ungrouped__';
 
 function iconHtml(name) { return icons[name] || ''; }
@@ -114,7 +113,7 @@ function groupHtml(group) {
 }
 
 function ungroupedGroupHtml(links) {
-  const collapsed = ungroupedCollapsed ? ' collapsed' : '';
+  const collapsed = getState().ui.ungroupedCollapsed ? ' collapsed' : '';
   const countLabel = `${links.length} link${links.length === 1 ? '' : 's'}`;
   return `<div class="group" data-group-id="${UNGROUPED_ID}">
     <div class="group-header${collapsed}" data-group-id="${UNGROUPED_ID}" title="Ungrouped — ${escapeAttr(countLabel)}">
@@ -178,7 +177,9 @@ function wireRowEvents() {
     el.addEventListener('click', () => {
       const gid = el.dataset.groupId;
       if (gid === UNGROUPED_ID) {
-        ungroupedCollapsed = !ungroupedCollapsed;
+        const next = !getState().ui.ungroupedCollapsed;
+        setState({ ui: { ...getState().ui, ungroupedCollapsed: next } });
+        pushLayout();
         renderList();
         return;
       }
@@ -263,6 +264,7 @@ function pushLayout() {
     sidebarCollapsed: getState().ui.sidebarCollapsed,
     showToolbar: getState().ui.showToolbar,
     sidebarFooterOpen: getState().ui.sidebarFooterOpen,
+    ungroupedCollapsed: getState().ui.ungroupedCollapsed,
   });
 }
 

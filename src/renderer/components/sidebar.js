@@ -2,6 +2,7 @@ import { getState, setState, getLink, getGroup } from '../state.js';
 import { icons } from '../icons.js';
 import { openLinkDialog } from './dialog-link.js';
 import { openGroupDialog } from './dialog-group.js';
+import { showToast } from './toast.js';
 
 const listEl = document.getElementById('sidebar-list');
 const shellEl = document.getElementById('shell');
@@ -13,6 +14,7 @@ const footerActions = document.getElementById('sidebar-footer-actions');
 const btnAddLink = document.getElementById('btn-add-link');
 const btnAddGroup = document.getElementById('btn-add-group');
 const btnSettings = document.getElementById('btn-settings');
+const btnLock = document.getElementById('btn-lock');
 const btnEmptyAdd = document.getElementById('btn-empty-add');
 
 let dragging = null; // { type: 'link'|'group', id }
@@ -311,6 +313,8 @@ export function initSidebar() {
   btnAddLink.innerHTML = `${iconHtml('plus')}<span>Add Link</span>`;
   btnAddGroup.innerHTML = `${iconHtml('folder')}<span>Add Group</span>`;
   btnSettings.innerHTML = `${iconHtml('gear')}<span>Settings</span>`;
+  btnLock.innerHTML = `${iconHtml('lock')}<span>Lock</span>`;
+  btnLock.title = 'Lock the app (Ctrl+Shift+L)';
 
   collapseToggle.addEventListener('click', () => {
     const ui = getState().ui;
@@ -324,6 +328,13 @@ export function initSidebar() {
     btnFooterToggle.classList.toggle('open', open);
     setState({ ui: { ...getState().ui, sidebarFooterOpen: open } });
     pushLayout();
+  });
+
+  btnLock.addEventListener('click', async () => {
+    const res = await window.myApps.invoke('lock:now');
+    if (res && res.error === 'no-password') {
+      showToast({ type: 'info', message: 'Set a lock password first: Settings → Security.' });
+    }
   });
 
   btnAddLink.addEventListener('click', () => openLinkDialog(null));

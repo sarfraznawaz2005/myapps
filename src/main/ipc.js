@@ -83,8 +83,19 @@ function recomputeAggregate(ctx) {
   return aggregate;
 }
 
+// While the app is locked only these requests are answered; everything else
+// (open a link, export data, change settings, ...) is refused in main, so a
+// tampered or scripted shell cannot get around the lock screen.
+const ALLOWED_WHEN_LOCKED = new Set([
+  CH.APP_GET_STATE, CH.APP_QUIT, CH.LOCK_STATUS, CH.LOCK_UNLOCK,
+]);
+
 function initIpc(ctx) {
-  const { store, viewManager, unreadTracker, indicator, notifications, tray } = ctx;
+  const { store, viewManager, unreadTracker, indicator, notifications, tray, appLock } = ctx;
+  const handle = (channel, fn) => ipcMain.handle(channel, (event, ...args) => {
+    if (appLock.isLocked() && !ALLOWED_WHEN_LOCKED.has(channel)) return null;
+    return fn(event, ...args);
+  });
   ctx.lastCounts = new Map();
   ctx.crashInfo = new Map();
   permissionPrompt.init(ctx);
@@ -219,13 +230,13 @@ function initIpc(ctx) {
     sendToShell(ctx, CH.SHELL_OPEN_DIALOG, { type: 'picked-element', linkId, ...payload });
   });
 
-  ipcMain.handle(CH.LINK_FIND, (_event, text, options) => {
+  handle(CH.LINK_FIND, (_event, text, options) => {
     const id = viewManager.getActiveId();
     if (!id) return false;
     return viewManager.findInPage(id, text, options);
   });
 
-  ipcMain.handle(CH.LINK_FIND_STOP, () => {
+  handle(CH.LINK_FIND_STOP, () => {
     const id = viewManager.getActiveId();
     if (id) viewManager.stopFindInPage(id);
   });
@@ -233,7 +244,7 @@ function initIpc(ctx) {
   // Gate stays here rather than in navigator.geolocation itself, so a link
   // with location off gets the same PERMISSION_DENIED (code 1) a real
   // browser would give, without ever shelling out to Windows.
-  ipcMain.handle(CH.LINK_GET_LOCATION, async (_event, linkId) => {
+  handle(CH.LINK_GET_LOCATION, async (_event, linkId) => {
     const link = store.getState().links.find((l) => l.id === linkId);
     if (!link) return { ok: false, code: 2, message: 'Link not found.' };
 
@@ -276,34 +287,57 @@ function initIpc(ctx) {
 
   // The shell's Allow/Block modal calls this once the user clicks a button;
   // permissionPrompt.respond() looks up the matching pending request by id.
-  ipcMain.handle(CH.LINK_PERMISSION_RESPOND, (_event, id, allow) => {
+  handle(CH.LINK_PERMISSION_RESPOND, (_event, id, allow) => {
     permissionPrompt.respond(id, allow);
   });
 
   // ---- shell -> main: invoke ----
-  ipcMain.handle(CH.APP_GET_STATE, () => ({
+  handle(CH.APP_GET_STATE, () => ({
     ...store.getState(),
     unread: unreadTracker.getAll(),
     aggregate: indicator.lastAggregate,
     activeLinkId: viewManager.getActiveId(),
     loadedLinkIds: Array.from(viewManager.views.keys()),
+    lock: appLock.status(),
   }));
 
-  ipcMain.handle(CH.APP_QUIT, () => {
+  // ---- app lock ----
+  appLock.on('locked', () => {
+    viewManager.setLocked(true);
+    sendToShell(ctx, CH.SHELL_LOCK, appLock.status());
+  });
+  appLock.on('unlocked', () => {
+    viewManager.setLocked(false);
+    sendToShell(ctx, CH.SHELL_LOCK, appLock.status());
+    // First unlock after a locked start: the workspace was held back.
+    if (!ctx.workspaceStarted) startWorkspace();
+    else if (!viewManager.getActiveId()) activateStartupLink();
+  });
+
+  handle(CH.LOCK_STATUS, () => appLock.status());
+  handle(CH.LOCK_UNLOCK, (_event, password) => appLock.unlock(password));
+  handle(CH.LOCK_NOW, () => (appLock.lock() ? { ok: true } : { ok: false, error: 'no-password' }));
+  handle(CH.LOCK_SET, (_event, payload) => {
+    const p = payload || {};
+    return appLock.setPassword(p.password, p.current);
+  });
+  handle(CH.LOCK_REMOVE, (_event, current) => appLock.removePassword(current));
+
+  handle(CH.APP_QUIT, () => {
     ctx.isQuitting = true;
     app.quit();
   });
 
-  ipcMain.handle(CH.APP_CHECK_UPDATE, () => updateCheck.checkForUpdate());
+  handle(CH.APP_CHECK_UPDATE, () => updateCheck.checkForUpdate());
 
-  ipcMain.handle(CH.APP_OPEN_EXTERNAL_URL, (_event, url) => {
+  handle(CH.APP_OPEN_EXTERNAL_URL, (_event, url) => {
     if (typeof url === 'string' && /^https:\/\//.test(url)) navigation.openExternal(url);
     return true;
   });
 
-  ipcMain.handle(CH.LINK_CREATE, (_event, data) => store.createLink(data));
+  handle(CH.LINK_CREATE, (_event, data) => store.createLink(data));
 
-  ipcMain.handle(CH.LINK_UPDATE, (_event, id, patch) => {
+  handle(CH.LINK_UPDATE, (_event, id, patch) => {
     const wasActive = viewManager.getActiveId() === id;
     const link = store.updateLink(id, patch);
     if (link) {
@@ -323,7 +357,7 @@ function initIpc(ctx) {
     return link;
   });
 
-  ipcMain.handle(CH.LINK_DELETE, async (_event, id, opts) => {
+  handle(CH.LINK_DELETE, async (_event, id, opts) => {
     if (viewManager.isLoaded(id)) viewManager.hibernate(id);
     unreadTracker.remove(id);
     // lastCounts/crashInfo are keyed by linkId and only ever grow — without
@@ -339,29 +373,29 @@ function initIpc(ctx) {
     return store.deleteLink(id);
   });
 
-  ipcMain.handle(CH.LINK_REORDER, (_event, orderedIds, groupId) => store.reorderLinks(orderedIds, groupId));
+  handle(CH.LINK_REORDER, (_event, orderedIds, groupId) => store.reorderLinks(orderedIds, groupId));
 
-  ipcMain.handle(CH.LINK_ACTIVATE, (_event, id) => {
+  handle(CH.LINK_ACTIVATE, (_event, id) => {
     unreadTracker.clearNotified(id);
     return viewManager.activate(id);
   });
 
-  ipcMain.handle(CH.LINK_HIBERNATE, (_event, id) => viewManager.hibernate(id));
+  handle(CH.LINK_HIBERNATE, (_event, id) => viewManager.hibernate(id));
 
-  ipcMain.handle(CH.LINK_RELOAD, (_event, id) => viewManager.reload(id));
+  handle(CH.LINK_RELOAD, (_event, id) => viewManager.reload(id));
 
-  ipcMain.handle(CH.LINK_CLEAR_DATA, async (_event, id) => {
+  handle(CH.LINK_CLEAR_DATA, async (_event, id) => {
     await viewManager.clearData(id);
     favicon.removeCachedFavicon(id);
     return true;
   });
 
-  ipcMain.handle(CH.LINK_DEVTOOLS, (_event, id) => {
+  handle(CH.LINK_DEVTOOLS, (_event, id) => {
     viewManager.openDevTools(id);
     return true;
   });
 
-  ipcMain.handle(CH.LINK_TEST_EXPERT_RULE, async (_event, id, rule) => {
+  handle(CH.LINK_TEST_EXPERT_RULE, async (_event, id, rule) => {
     const view = viewManager.getView(id) || viewManager.ensureView(id);
     if (!view) return { ok: false, error: 'Link is not loaded' };
     const script = `(window.__myappsTestExpertRule ? window.__myappsTestExpertRule(${JSON.stringify(rule)}) : { ok: false, error: 'Page not ready yet — try again in a moment.' })`;
@@ -381,31 +415,31 @@ function initIpc(ctx) {
     return lastResult;
   });
 
-  ipcMain.handle(CH.LINK_PICK_ELEMENT, (_event, id) => {
+  handle(CH.LINK_PICK_ELEMENT, (_event, id) => {
     const view = viewManager.getView(id) || viewManager.ensureView(id);
     if (!view) return false;
     sendToAllFrames(view.webContents, CH.LINK_START_PICKER);
     return true;
   });
 
-  ipcMain.handle(CH.LINK_PROBE_URL, (_event, url) => navigation.probeUrl(url));
+  handle(CH.LINK_PROBE_URL, (_event, url) => navigation.probeUrl(url));
 
-  ipcMain.handle(CH.USERSCRIPT_CREATE, (_event, data) => store.createUserscript(data));
-  ipcMain.handle(CH.USERSCRIPT_UPDATE, (_event, id, patch) => store.updateUserscript(id, patch));
-  ipcMain.handle(CH.USERSCRIPT_DELETE, (_event, id) => store.deleteUserscript(id));
+  handle(CH.USERSCRIPT_CREATE, (_event, data) => store.createUserscript(data));
+  handle(CH.USERSCRIPT_UPDATE, (_event, id, patch) => store.updateUserscript(id, patch));
+  handle(CH.USERSCRIPT_DELETE, (_event, id) => store.deleteUserscript(id));
 
-  ipcMain.handle(CH.COMMAND_CREATE, (_event, data) => store.createCommand(data));
-  ipcMain.handle(CH.COMMAND_UPDATE, (_event, id, patch) => store.updateCommand(id, patch));
-  ipcMain.handle(CH.COMMAND_DELETE, (_event, id) => store.deleteCommand(id));
+  handle(CH.COMMAND_CREATE, (_event, data) => store.createCommand(data));
+  handle(CH.COMMAND_UPDATE, (_event, id, patch) => store.updateCommand(id, patch));
+  handle(CH.COMMAND_DELETE, (_event, id) => store.deleteCommand(id));
 
-  ipcMain.handle(CH.NOTE_SET, (_event, url, text) => store.setNote(url, text));
+  handle(CH.NOTE_SET, (_event, url, text) => store.setNote(url, text));
 
-  ipcMain.handle(CH.GROUP_CREATE, (_event, data) => store.createGroup(data));
-  ipcMain.handle(CH.GROUP_UPDATE, (_event, id, patch) => store.updateGroup(id, patch));
-  ipcMain.handle(CH.GROUP_DELETE, (_event, id, opts) => store.deleteGroup(id, opts));
-  ipcMain.handle(CH.GROUP_REORDER, (_event, orderedIds) => store.reorderGroups(orderedIds));
+  handle(CH.GROUP_CREATE, (_event, data) => store.createGroup(data));
+  handle(CH.GROUP_UPDATE, (_event, id, patch) => store.updateGroup(id, patch));
+  handle(CH.GROUP_DELETE, (_event, id, opts) => store.deleteGroup(id, opts));
+  handle(CH.GROUP_REORDER, (_event, orderedIds) => store.reorderGroups(orderedIds));
 
-  ipcMain.handle(CH.SETTINGS_UPDATE, (_event, patch) => {
+  handle(CH.SETTINGS_UPDATE, (_event, patch) => {
     const settings = store.updateSettings(patch);
     if (Object.prototype.hasOwnProperty.call(patch, 'startWithOS')) autolaunch.syncAutoLaunch(store);
     if (Object.prototype.hasOwnProperty.call(patch, 'showTrayIcon')) {
@@ -422,9 +456,9 @@ function initIpc(ctx) {
 
   // Saved logins go into the file only when an Export Key is set, and only
   // locked with that key (never plain text).
-  ipcMain.handle(CH.SETTINGS_EXPORT, () => passwords.buildExport(store.exportJSON(), vaultApi));
+  handle(CH.SETTINGS_EXPORT, () => passwords.buildExport(store.exportJSON(), vaultApi));
 
-  ipcMain.handle(CH.SETTINGS_IMPORT, (_event, text, typedKey) => {
+  handle(CH.SETTINGS_IMPORT, (_event, text, typedKey) => {
     // Unlock first: a wrong key must fail before anything is replaced.
     const prepared = passwords.prepareImport(text, typedKey, vaultApi);
     if (prepared.error) return { error: prepared.error };
@@ -437,14 +471,14 @@ function initIpc(ctx) {
     return state;
   });
 
-  ipcMain.handle(CH.DND_SET, (_event, patch) => {
+  handle(CH.DND_SET, (_event, patch) => {
     const settings = store.updateSettings({ dnd: patch });
     tray.refreshMenu();
     recomputeAggregate(ctx);
     return settings.dnd;
   });
 
-  ipcMain.handle(CH.NAV_GO, (_event, direction) => {
+  handle(CH.NAV_GO, (_event, direction) => {
     const id = viewManager.getActiveId();
     if (!id) return false;
     if (direction === 'back') viewManager.goBack(id);
@@ -455,13 +489,13 @@ function initIpc(ctx) {
     return true;
   });
 
-  ipcMain.handle(CH.NAV_NAVIGATE, (_event, url) => {
+  handle(CH.NAV_NAVIGATE, (_event, url) => {
     const id = viewManager.getActiveId();
     if (!id) return false;
     return viewManager.navigate(id, url);
   });
 
-  ipcMain.handle(CH.NAV_COPY_URL, () => {
+  handle(CH.NAV_COPY_URL, () => {
     const id = viewManager.getActiveId();
     const view = id ? viewManager.getView(id) : null;
     const link = store.getState().links.find((l) => l.id === id);
@@ -469,7 +503,7 @@ function initIpc(ctx) {
     return true;
   });
 
-  ipcMain.handle(CH.NAV_OPEN_EXTERNAL, () => {
+  handle(CH.NAV_OPEN_EXTERNAL, () => {
     const id = viewManager.getActiveId();
     const view = id ? viewManager.getView(id) : null;
     const link = store.getState().links.find((l) => l.id === id);
@@ -477,9 +511,9 @@ function initIpc(ctx) {
     return true;
   });
 
-  ipcMain.handle(CH.METRICS_GET, () => hibernationMod.getMemoryReport(store, viewManager));
+  handle(CH.METRICS_GET, () => hibernationMod.getMemoryReport(store, viewManager));
 
-  ipcMain.handle(CH.MENU_LINK_CONTEXT, (_event, linkId) => {
+  handle(CH.MENU_LINK_CONTEXT, (_event, linkId) => {
     contextMenus.showLinkContextMenu({
       linkId,
       store,
@@ -514,10 +548,7 @@ function initIpc(ctx) {
     }
   });
 
-  ipcMain.on(CH.UI_READY, () => {
-    const toast = store.takePendingToast();
-    if (toast) sendToShell(ctx, CH.SHELL_TOAST, toast);
-
+  function activateStartupLink() {
     const { ui, links } = store.getState();
     if (ui.lastActiveLinkId && links.find((l) => l.id === ui.lastActiveLinkId && l.enabled)) {
       viewManager.activate(ui.lastActiveLinkId);
@@ -525,6 +556,15 @@ function initIpc(ctx) {
       const order = shortcuts.getFlattenedLinkOrder(store);
       if (order[0]) viewManager.activate(order[0]);
     }
+  }
+
+  // Opens the last link and pre-loads the "open on startup" ones. Held back
+  // while locked (ensureView refuses anyway) and run once after the first
+  // unlock.
+  function startWorkspace() {
+    ctx.workspaceStarted = true;
+    const { links } = store.getState();
+    activateStartupLink();
     // Pre-load the rest of "open on startup" links in the background — this
     // only loads their view (so they're instant when clicked), it does not
     // switch the visible tab away from whatever was just activated above.
@@ -546,6 +586,16 @@ function initIpc(ctx) {
       }
     }
     recomputeAggregate(ctx);
+  }
+
+  ipcMain.on(CH.UI_READY, () => {
+    const toast = store.takePendingToast();
+    if (toast) sendToShell(ctx, CH.SHELL_TOAST, toast);
+    if (appLock.isLocked()) {
+      viewManager.setLocked(true);
+      return;
+    }
+    if (!ctx.workspaceStarted) startWorkspace();
   });
 }
 

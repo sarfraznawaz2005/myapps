@@ -13,6 +13,7 @@ const stub = {
   userData: null,
   encryptionAvailable: true,
   handlers: new Map(), // channel -> ipcMain.handle callback
+  windows: [], // what BrowserWindow.getAllWindows() returns
 };
 
 // Reversible fake "encryption" — enough to prove code never stores or
@@ -37,7 +38,9 @@ const electron = {
     handle: (ch, fn) => stub.handlers.set(ch, fn),
     on: () => {},
   },
-  BrowserWindow: class {},
+  BrowserWindow: class { static getAllWindows() { return stub.windows; } },
+  WebContentsView: class {},
+  powerMonitor: { getSystemIdleTime: () => 0 },
   clipboard: {},
   shell: {},
   session: {},

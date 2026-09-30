@@ -1,5 +1,6 @@
 import { getState, setState } from '../state.js';
 import { icons } from '../icons.js';
+import { showToast } from './toast.js';
 
 const host = document.getElementById('dialog-host');
 let activeSection = 'links';
@@ -253,6 +254,58 @@ async function passwordsSection(s) {
   `;
 }
 
+async function securitySection(s) {
+  const status = await window.myApps.invoke('lock:status');
+  const has = !!(status && status.hasPassword);
+  const pwField = (id, label) => `
+    <div class="field">
+      <label>${label}</label>
+      <input type="password" id="${id}" autocomplete="off" />
+    </div>`;
+
+  const form = has ? `
+    <div class="settings-section">
+      <h3>Change lock password</h3>
+      ${pwField('lk-current', 'Current password')}
+      ${pwField('lk-new', 'New password (at least 4 characters)')}
+      ${pwField('lk-confirm', 'Repeat new password')}
+      <div class="hint" id="lk-error" style="color:var(--danger);display:none;margin-bottom:8px;"></div>
+      <button class="btn primary" id="lk-save">Change password</button>
+    </div>
+    <div class="settings-section">
+      <h3>Auto-lock</h3>
+      <div class="field">
+        <label>Lock after this many idle minutes (0 = never)</label>
+        <input type="number" id="lk-idle" min="0" max="1440" value="${Number(s.lockIdleMinutes) || 0}" />
+        <div class="hint">Idle means no keyboard or mouse use anywhere on this PC.</div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>Remove lock</h3>
+      ${pwField('lk-remove-current', 'Current password')}
+      <div class="hint" id="lk-remove-error" style="color:var(--danger);display:none;margin-bottom:8px;"></div>
+      <button class="btn danger" id="lk-remove">Remove lock password</button>
+    </div>
+  ` : `
+    <div class="settings-section">
+      <h3>Set a lock password</h3>
+      ${pwField('lk-new', 'Password (at least 4 characters)')}
+      ${pwField('lk-confirm', 'Repeat password')}
+      <div class="hint" id="lk-error" style="color:var(--danger);display:none;margin-bottom:8px;"></div>
+      <button class="btn primary" id="lk-save">Set lock password</button>
+    </div>
+  `;
+
+  return `
+    <div class="settings-section">
+      <h3>App lock</h3>
+      <div class="hint">${has ? 'A lock password is set. The app locks when it starts, when you click Lock in the sidebar More menu, or press Ctrl+Shift+L.' : 'No lock password is set. When you set one, the app asks for it every time it starts, and no link opens until you unlock.'}</div>
+      <div class="hint" style="margin-top:8px;">This keeps people away from the open app. It does not protect the files on your disk. Use a Windows password and BitLocker for that. There is no "forgot password": if you lose it, the lock cannot be reset from inside the app.</div>
+    </div>
+    ${form}
+  `;
+}
+
 async function performanceSection() {
   const rows = await window.myApps.invoke('metrics:get');
   const totalMB = rows.reduce((sum, r) => sum + (r.memoryMB || 0), 0);
@@ -462,6 +515,7 @@ async function renderSection() {
   else if (activeSection === 'appearance') body.innerHTML = appearanceSection(s);
   else if (activeSection === 'performance') { body.innerHTML = '<div class="hint">Loading…</div>'; body.innerHTML = await performanceSection(); }
   else if (activeSection === 'passwords') { body.innerHTML = '<div class="hint">Loading…</div>'; body.innerHTML = await passwordsSection(s); }
+  else if (activeSection === 'security') { body.innerHTML = '<div class="hint">Loading…</div>'; body.innerHTML = await securitySection(s); }
   else if (activeSection === 'userscripts') body.innerHTML = userscriptsSection(getState().userscripts || [], editingUserscriptId);
   else if (activeSection === 'commands') body.innerHTML = commandsSection(getState().commands || [], editingCommandId);
   else if (activeSection === 'data') body.innerHTML = dataSection();
@@ -541,6 +595,48 @@ function wireSection(s) {
       renderSection();
     });
   });
+  const lkSave = document.getElementById('lk-save');
+  if (lkSave) {
+    const showErr = (id, text) => {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.style.display = text ? '' : 'none';
+    };
+    const lockError = (res) => {
+      if (res.error === 'wrong') return 'Wrong current password.';
+      if (res.error === 'wait') return `Too many wrong tries. Wait ${res.waitSeconds}s.`;
+      if (res.error === 'short') return `Password must be at least ${res.min} characters.`;
+      return 'Could not save the password.';
+    };
+    lkSave.addEventListener('click', async () => {
+      const next = document.getElementById('lk-new').value;
+      if (next !== document.getElementById('lk-confirm').value) { showErr('lk-error', 'The two passwords do not match.'); return; }
+      const currentEl = document.getElementById('lk-current');
+      const res = await window.myApps.invoke('lock:set', { password: next, current: currentEl ? currentEl.value : undefined });
+      if (!res || !res.ok) { showErr('lk-error', lockError(res || {})); return; }
+      showToast({ type: 'success', message: 'Lock password saved.' });
+      renderSection();
+    });
+    const lkRemove = document.getElementById('lk-remove');
+    if (lkRemove) {
+      lkRemove.addEventListener('click', async () => {
+        if (!confirm('Remove the lock password? The app will no longer ask for it.')) return;
+        const res = await window.myApps.invoke('lock:remove', document.getElementById('lk-remove-current').value);
+        if (!res || !res.ok) { showErr('lk-remove-error', lockError(res || {})); return; }
+        showToast({ type: 'success', message: 'Lock password removed.' });
+        renderSection();
+      });
+    }
+    const lkIdle = document.getElementById('lk-idle');
+    if (lkIdle) {
+      lkIdle.addEventListener('change', () => {
+        const minutes = Math.min(1440, Math.max(0, parseInt(lkIdle.value, 10) || 0));
+        lkIdle.value = minutes;
+        window.myApps.invoke('settings:update', { lockIdleMinutes: minutes });
+      });
+    }
+  }
+
   const pmKeySave = document.getElementById('pm-key-save');
   if (pmKeySave) {
     pmKeySave.addEventListener('click', async () => {
@@ -732,6 +828,7 @@ export function openSettingsDialog() {
     ['appearance', 'Appearance'],
     ['performance', 'Performance'],
     ['passwords', 'Passwords'],
+    ['security', 'Security'],
     ['userscripts', 'Userscripts'],
     ['commands', 'Commands'],
     ['data', 'Data'],
@@ -739,15 +836,17 @@ export function openSettingsDialog() {
   ];
 
   host.innerHTML = `
-    <div class="dialog wide">
+    <div class="dialog wide settings">
       <div class="dialog-header">
         <h2>Settings</h2>
         <button class="dialog-close">${icons.x}</button>
       </div>
-      <div class="dialog-tabs">
-        ${sections.map(([id, label]) => `<div class="dialog-tab${id === 'links' ? ' active' : ''}" data-section="${id}">${label}</div>`).join('')}
+      <div class="dialog-split">
+        <div class="dialog-tabs vertical">
+          ${sections.map(([id, label]) => `<div class="dialog-tab${id === 'links' ? ' active' : ''}" data-section="${id}">${label}</div>`).join('')}
+        </div>
+        <div class="dialog-body"></div>
       </div>
-      <div class="dialog-body"></div>
       <div class="dialog-footer">
         <button class="btn primary" id="st-done">Done</button>
       </div>

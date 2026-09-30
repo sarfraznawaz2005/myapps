@@ -20,6 +20,7 @@ const INVOKE_CHANNELS = new Set([
   'nav:go', 'nav:navigate', 'nav:copy-url', 'nav:open-external',
   'metrics:get', 'menu:link-context',
   'link:permission-respond',
+  'lock:status', 'lock:unlock', 'lock:now', 'lock:set', 'lock:remove',
   'pm:manage-list', 'pm:delete', 'pm:clear-all', 'pm:unnever', 'pm:key-set', 'pm:key-clear',
 ]);
 
@@ -29,7 +30,17 @@ const ON_CHANNELS = new Set([
   'shell:state', 'shell:unread', 'shell:aggregate', 'shell:nav',
   'shell:link-status', 'shell:favicon', 'shell:audio', 'shell:active',
   'shell:toast', 'shell:open-dialog', 'shell:permission-prompt', 'shell:find-result',
+  'shell:lock',
 ]);
+
+// When the app starts locked, main passes --app-locked so the shell is
+// hidden from the very first paint (no flash of the sidebar before the lock
+// screen script runs).
+if (process.argv.includes('--app-locked')) {
+  const mark = () => { if (document.documentElement) document.documentElement.setAttribute('data-locked', '1'); };
+  mark();
+  document.addEventListener('DOMContentLoaded', mark);
+}
 
 function invoke(channel, ...args) {
   if (!INVOKE_CHANNELS.has(channel)) {

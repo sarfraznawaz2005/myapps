@@ -1,8 +1,9 @@
 'use strict';
 
-const { app, Menu, nativeTheme } = require('electron');
+const { app, Menu, nativeTheme, powerMonitor } = require('electron');
 const { APP_ID } = require('./src/main/constants');
 const { Store } = require('./src/main/store');
+const { AppLock } = require('./src/main/appLock');
 const { createMainWindow } = require('./src/main/window');
 const { ViewManager } = require('./src/main/viewManager');
 const { UnreadTracker } = require('./src/main/unread');
@@ -32,6 +33,7 @@ if (!gotLock) {
     mainWindow: null,
     viewManager: null,
     unreadTracker: null,
+    appLock: null,
     indicator: null,
     notifications: null,
     hibernationController: null,
@@ -82,8 +84,17 @@ if (!gotLock) {
 
     runStartupCommands(store);
 
+    // Created before the window so a saved lock password hides the shell from
+    // the very first paint.
+    const appLock = new AppLock({
+      getIdleMinutes: () => store.getState().settings.lockIdleMinutes,
+      idleSeconds: () => powerMonitor.getSystemIdleTime(),
+    });
+    ctx.appLock = appLock;
+    appLock.startIdleWatch();
+
     const startHidden = autolaunch.wasLaunchedHidden();
-    const mainWindow = createMainWindow({ store, startHidden });
+    const mainWindow = createMainWindow({ store, startHidden, startLocked: appLock.isLocked() });
     ctx.mainWindow = mainWindow;
 
     const viewManager = new ViewManager({ mainWindow, store });
@@ -153,10 +164,10 @@ if (!gotLock) {
       if (activeId) unreadTracker.clearNotified(activeId);
     });
 
-    attachShortcuts(mainWindow.webContents, { store, viewManager, mainWindow });
+    attachShortcuts(mainWindow.webContents, { store, viewManager, mainWindow, appLock });
     viewManager.on('loaded', (id) => {
       const view = viewManager.getView(id);
-      if (view) attachShortcuts(view.webContents, { store, viewManager, mainWindow });
+      if (view) attachShortcuts(view.webContents, { store, viewManager, mainWindow, appLock });
     });
 
     if (store.getState().settings.showTrayIcon) tray.create();
@@ -170,6 +181,7 @@ if (!gotLock) {
     app.on('before-quit', () => {
       ctx.isQuitting = true;
       viewManager.destroyAll();
+      appLock.stopIdleWatch();
       hibernationController.destroy();
       tray.destroy();
     });

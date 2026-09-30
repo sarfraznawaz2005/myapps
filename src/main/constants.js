@@ -63,6 +63,12 @@ const CH = {
   MENU_LINK_CONTEXT: 'menu:link-context',
   LINK_PERMISSION_RESPOND: 'link:permission-respond',
 
+  LOCK_STATUS: 'lock:status',
+  LOCK_UNLOCK: 'lock:unlock',
+  LOCK_NOW: 'lock:now',
+  LOCK_SET: 'lock:set',
+  LOCK_REMOVE: 'lock:remove',
+
   // Shell -> main, send (fire and forget)
   UI_LAYOUT: 'ui:layout',
   UI_MODAL_OPEN: 'ui:modal-open',
@@ -81,6 +87,7 @@ const CH = {
   SHELL_OPEN_DIALOG: 'shell:open-dialog',
   SHELL_PERMISSION_PROMPT: 'shell:permission-prompt',
   SHELL_FIND_RESULT: 'shell:find-result',
+  SHELL_LOCK: 'shell:lock',
 
   // Link preload -> main
   LINK_BOOTSTRAP: 'link:bootstrap',

@@ -70,10 +70,12 @@ class NotificationsController {
     this.everSentReal.add(linkId);
     if (this._shouldSuppress(link)) return;
 
+    // Locked: a toast must not show message text on a locked screen.
+    const locked = !!this.viewManager.locked;
     const iconPath = favicon.getCachedFaviconPath(linkId) || ICON_FALLBACK;
     const notif = new Notification({
-      title: `${link.name}: ${payload.title || ''}`,
-      body: (payload.options && payload.options.body) || '',
+      title: locked ? `${link.name}: New notification` : `${link.name}: ${payload.title || ''}`,
+      body: locked ? '' : (payload.options && payload.options.body) || '',
       icon: iconPath,
       silent: !link.notifications.sound,
     });

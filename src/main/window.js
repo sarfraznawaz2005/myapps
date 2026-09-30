@@ -15,7 +15,7 @@ function validateBounds(bounds) {
   return fits ? bounds : null;
 }
 
-function createMainWindow({ store, startHidden }) {
+function createMainWindow({ store, startHidden, startLocked }) {
   const { ui } = store.getState();
   const savedBounds = validateBounds(ui.window);
   const width = (savedBounds && savedBounds.width) || ui.window.width || 1280;
@@ -34,6 +34,7 @@ function createMainWindow({ store, startHidden }) {
       nodeIntegration: false,
       backgroundThrottling: false,
       spellcheck: !!store.getState().settings.spellcheck,
+      additionalArguments: startLocked ? ['--app-locked'] : [],
     },
   };
   if (savedBounds && typeof savedBounds.x === 'number') {

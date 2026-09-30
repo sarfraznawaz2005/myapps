@@ -2,7 +2,7 @@
 
 const path = require('path');
 const { EventEmitter } = require('events');
-const { WebContentsView, shell } = require('electron');
+const { WebContentsView, BrowserWindow, shell } = require('electron');
 const { getLinkSession } = require('./sessions');
 const { attachEditContextMenu, wirePopupSessions } = require('./editContextMenu');
 const { TOOLBAR_HEIGHT, SIDEBAR_COLLAPSED_WIDTH } = require('./constants');
@@ -20,6 +20,9 @@ class ViewManager extends EventEmitter {
     this.views = new Map(); // linkId -> WebContentsView
     this.activeId = null;
     this.modalOpen = false;
+    // App lock: while true no view is created or shown (see setLocked).
+    this.locked = false;
+    this._hiddenPopups = [];
   }
 
   _link(id) {
@@ -46,6 +49,8 @@ class ViewManager extends EventEmitter {
     // A disabled (hidden) link must never spin up a WebContentsView — that
     // is the whole point of hiding it, so memory is actually freed.
     if (!link.enabled) return null;
+    // Locked: nothing new may load, whoever asks (startup, crash retry, IPC).
+    if (this.locked) return null;
 
     const ses = getLinkSession(link, this.store);
     // "Keep awake" already exists in the Edit dialog as the user's one
@@ -183,6 +188,7 @@ class ViewManager extends EventEmitter {
   }
 
   activate(id) {
+    if (this.locked) return false;
     const view = this.ensureView(id);
     if (!view) return false;
     const prevId = this.activeId;
@@ -230,6 +236,40 @@ class ViewManager extends EventEmitter {
     this.emit('active', this.activeId);
   }
 
+  // App lock. Locking detaches and mutes every view (pages stay alive, so
+  // calls and downloads keep going), closes DevTools and hides popup windows
+  // (OAuth etc.), so nothing from a link stays visible. Unlocking puts the
+  // active view back.
+  setLocked(locked) {
+    if (this.locked === !!locked) return;
+    this.locked = !!locked;
+    if (this.locked) {
+      for (const [id, view] of this.views) {
+        const wc = view.webContents;
+        if (wc.isDestroyed()) continue;
+        try { if (wc.isDevToolsOpened()) wc.closeDevTools(); } catch (_e) { /* ignore */ }
+        // A link the user marked "keep playing" (music, a call) stays audible.
+        const link = this._link(id);
+        if (link && link.keepPlaying) continue;
+        wc.setAudioMuted(true);
+        this.emit('deactivated', id); // pauses the page's media
+      }
+      try {
+        const sw = this.mainWindow.webContents;
+        if (sw.isDevToolsOpened()) sw.closeDevTools();
+      } catch (_e) { /* ignore */ }
+      this._hiddenPopups = BrowserWindow.getAllWindows().filter((w) => w !== this.mainWindow && !w.isDestroyed() && w.isVisible());
+      this._hiddenPopups.forEach((w) => w.hide());
+      this._syncActiveVisibility();
+    } else {
+      this._hiddenPopups.forEach((w) => { if (!w.isDestroyed()) w.show(); });
+      this._hiddenPopups = [];
+      this._syncActiveVisibility();
+      this.layout();
+      this.resumeActiveMedia();
+    }
+  }
+
   setModalOpen(open) {
     this.modalOpen = open;
     this._syncActiveVisibility();
@@ -242,7 +282,7 @@ class ViewManager extends EventEmitter {
     const view = this.activeId ? this.views.get(this.activeId) : null;
     if (!view) return;
     const attached = this.mainWindow.contentView.children.includes(view);
-    if (this.modalOpen) {
+    if (this.modalOpen || this.locked) {
       if (attached) this.mainWindow.contentView.removeChildView(view);
     } else {
       if (!attached) this.mainWindow.contentView.addChildView(view);
@@ -257,7 +297,7 @@ class ViewManager extends EventEmitter {
   // re-attaching forces Windows to redo input hit-testing without needing a
   // full hide/show of the whole app window.
   kickActiveView() {
-    if (this.modalOpen) return;
+    if (this.modalOpen || this.locked) return;
     const view = this.activeId ? this.views.get(this.activeId) : null;
     if (!view) return;
     if (this.mainWindow.contentView.children.includes(view)) {

@@ -4,6 +4,7 @@ import * as toolbar from './components/toolbar.js';
 import { showToast } from './components/toast.js';
 import { openLinkDialog } from './components/dialog-link.js';
 import { openPermissionPrompt } from './components/dialog-permission.js';
+import { initLockScreen, setLocked } from './components/lock-screen.js';
 
 const contentEmpty = document.getElementById('content-empty');
 const quickSwitch = document.getElementById('quick-switch');
@@ -169,10 +170,12 @@ async function init() {
   window.myApps.on('shell:permission-prompt', onPermissionPrompt);
   window.myApps.on('shell:find-result', onFindResult);
 
+  initLockScreen();
   sidebar.initSidebar();
   toolbar.initToolbar();
 
   const initial = await window.myApps.invoke('app:get-state');
+  setLocked(initial.lock);
   onShellState(initial);
 
   window.myApps.send('ui:ready');

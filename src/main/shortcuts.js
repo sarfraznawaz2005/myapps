@@ -19,10 +19,23 @@ function getFlattenedLinkOrder(store) {
 // given webContents (the shell window or any embedded link view — Electron
 // has no menu-bar accelerators since Menu.setApplicationMenu(null), so this
 // is the only place these shortcuts are wired).
-function attachShortcuts(wc, { store, viewManager, mainWindow }) {
+function attachShortcuts(wc, { store, viewManager, mainWindow, appLock }) {
   wc.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
     const ctrl = input.control || input.meta;
+
+    // Locked: none of our shortcuts may work (no link switching, no DevTools).
+    if (viewManager.locked) {
+      if (input.key === 'F12') event.preventDefault();
+      return;
+    }
+
+    // Ctrl+Shift+L locks the app (only does anything if a lock password is set).
+    if (appLock && ctrl && input.shift && !input.alt && input.key.toLowerCase() === 'l') {
+      event.preventDefault();
+      appLock.lock();
+      return;
+    }
 
     if (ctrl && !input.shift && !input.alt && /^[1-9]$/.test(input.key)) {
       const order = getFlattenedLinkOrder(store);

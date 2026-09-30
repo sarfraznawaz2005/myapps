@@ -60,6 +60,31 @@
 }
 .dialog-tab.active { color: var(--text); border-color: var(--accent); }
 
+/* Settings: tabs stacked down the left, content on the right. Fixed height so
+   switching tabs never makes the dialog jump. */
+.dialog.settings { height: min(640px, calc(100vh - 60px)); }
+.dialog-split { display: flex; flex: 1; min-height: 0; }
+.dialog-tabs.vertical {
+  flex-direction: column;
+  gap: 2px;
+  width: 168px;
+  flex-shrink: 0;
+  padding: 10px 8px;
+  border-bottom: 0;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+.dialog-tabs.vertical .dialog-tab {
+  padding: 8px 12px;
+  margin-right: 0;
+  border-bottom: 0;
+  border-left: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.dialog-tabs.vertical .dialog-tab:hover { background: var(--bg-hover); color: var(--text); }
+.dialog-tabs.vertical .dialog-tab.active { background: var(--bg-active); border-left-color: var(--accent); }
+
 .dialog-body {
   padding: 16px;
   overflow-y: auto;
@@ -85,7 +110,7 @@
   margin-bottom: 5px;
 }
 .field .hint { font-size: 11px; color: var(--text-faint); margin-top: 4px; }
-.field input[type="text"], .field input[type="url"], .field input[type="number"], .field select, .field textarea {
+.field input[type="text"], .field input[type="url"], .field input[type="password"], .field input[type="number"], .field select, .field textarea {
   width: 100%;
   padding: 7px 9px;
   border-radius: 6px;

@@ -123,6 +123,7 @@ function generalSection(s) {
       <h3>Browsing</h3>
       ${checkboxRow('st-open-ext', 'Open unrelated links in the default browser by default', s.openExternalLinksInBrowser)}
       ${checkboxRow('st-spellcheck', 'Spellcheck text fields', s.spellcheck)}
+      ${checkboxRow('st-reveal-pw', 'Show an eye button on password fields to reveal what you typed', s.revealPassword)}
       ${checkboxRow('st-confirm-delete', 'Confirm before deleting a link', s.confirmDelete)}
     </div>
     <div class="settings-section">
@@ -193,6 +194,61 @@ function appearanceSection(s) {
           <option value="dot" ${s.overlayStyle === 'dot' ? 'selected' : ''}>Dot</option>
         </select>
       </div>
+    </div>
+  `;
+}
+
+async function passwordsSection(s) {
+  const info = await window.myApps.invoke('pm:manage-list');
+  const entries = (info && info.entries) || [];
+  const never = (info && info.never) || [];
+  const warn = info && !info.available
+    ? '<div class="hint" style="color:var(--danger);margin-bottom:8px;">Windows encryption is not available, so passwords cannot be saved.</div>'
+    : '';
+
+  const rows = entries.length ? entries.map((e) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
+      <span style="flex:1;font-size:12.5px;">${escapeHtml(e.host)} <span class="hint">— ${escapeHtml(e.username || '(no username)')}</span></span>
+      <button class="btn small danger pm-delete" data-id="${escapeHtml(e.id)}">Delete</button>
+    </div>
+  `).join('') : '<div class="hint">No saved passwords.</div>';
+
+  const neverRows = never.length ? `
+    <div class="hint" style="font-weight:600;margin:14px 0 4px;">Never save for these sites</div>
+    ${never.map((host) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
+        <span style="flex:1;font-size:12.5px;">${escapeHtml(host)}</span>
+        <button class="btn small pm-unnever" data-host="${escapeHtml(host)}">Allow again</button>
+      </div>
+    `).join('')}
+  ` : '';
+
+  return `
+    <div class="settings-section">
+      <h3>Password manager</h3>
+      ${warn}
+      ${checkboxRow('st-pm-enabled', 'Save and fill passwords on sites', s.passwordManager)}
+      <div class="hint" style="margin-top:6px;">Off by default. When on, My Apps asks to save a login after you sign in, and shows your saved accounts when you click a login field. Passwords are encrypted with your Windows account and stored in <code>passwords.json</code> in the app data folder. They are not included in Export JSON. Only https sites are supported. Turning this off stops saving and filling but keeps what is saved.</div>
+    </div>
+    <div class="settings-section">
+      <h3>Export Key</h3>
+      <div class="hint" style="margin-bottom:8px;">Locks saved logins inside the file made by Export JSON (Data tab). With no key, logins are left out of the export. Import uses the saved key on its own; if this PC has no key, import asks for it. Keep the key somewhere safe. If you lose it, logins in old export files cannot be opened.</div>
+      <div class="hint" id="pm-key-status" style="margin-bottom:8px;">${info && info.hasExportKey ? 'A key is saved on this PC.' : 'No key saved.'}</div>
+      <div class="field">
+        <label>Export Key (at least 6 characters)</label>
+        <input type="password" id="pm-key-input" autocomplete="off" placeholder="${info && info.hasExportKey ? 'Type a new key to replace the saved one' : 'Type a key'}" />
+      </div>
+      <div class="hint" id="pm-key-error" style="color:var(--danger);display:none;"></div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn primary" id="pm-key-save">Save key</button>
+        ${info && info.hasExportKey ? '<button class="btn danger" id="pm-key-clear">Remove key</button>' : ''}
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>Saved logins</h3>
+      ${rows}
+      ${neverRows}
+      ${entries.length ? '<button class="btn danger" id="pm-clear-all" style="margin-top:12px;">Delete all saved passwords</button>' : ''}
     </div>
   `;
 }
@@ -320,10 +376,36 @@ function commandsSection(commands, editingId) {
   `;
 }
 
+// Small in-dialog form (window.prompt isn't available in Electron). Resolves
+// to the typed key, or null if cancelled.
+function askImportKey(message) {
+  return new Promise((resolve) => {
+    const box = document.createElement('div');
+    box.className = 'settings-section';
+    box.innerHTML = `
+      <h3>Export Key needed</h3>
+      <div class="hint" style="margin-bottom:8px;">This file has saved logins. Type the Export Key that was used when it was made.</div>
+      <div class="hint" style="color:var(--danger);margin-bottom:8px;${message ? '' : 'display:none;'}">${escapeHtml(message)}</div>
+      <div class="field"><input type="password" id="imp-key-input" autocomplete="off" /></div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn primary" id="imp-key-ok">Unlock and import</button>
+        <button class="btn" id="imp-key-cancel">Cancel</button>
+      </div>
+    `;
+    host.querySelector('.dialog-body').prepend(box);
+    const input = box.querySelector('#imp-key-input');
+    input.focus();
+    const done = (value) => { box.remove(); resolve(value); };
+    box.querySelector('#imp-key-ok').addEventListener('click', () => done(input.value));
+    box.querySelector('#imp-key-cancel').addEventListener('click', () => done(null));
+  });
+}
+
 function dataSection() {
   return `
     <div class="settings-section">
       <h3>Backup</h3>
+      <div class="hint" style="margin-bottom:8px;">Saved logins are included only if an Export Key is set in the Passwords tab. They are locked with that key.</div>
       <div style="display:flex;gap:8px;">
         <button class="btn" id="st-export">${icons.download} Export JSON</button>
         <button class="btn" id="st-import">${icons.upload} Import JSON</button>
@@ -379,6 +461,7 @@ async function renderSection() {
   else if (activeSection === 'notifications') body.innerHTML = notificationsSection(s);
   else if (activeSection === 'appearance') body.innerHTML = appearanceSection(s);
   else if (activeSection === 'performance') { body.innerHTML = '<div class="hint">Loading…</div>'; body.innerHTML = await performanceSection(); }
+  else if (activeSection === 'passwords') { body.innerHTML = '<div class="hint">Loading…</div>'; body.innerHTML = await passwordsSection(s); }
   else if (activeSection === 'userscripts') body.innerHTML = userscriptsSection(getState().userscripts || [], editingUserscriptId);
   else if (activeSection === 'commands') body.innerHTML = commandsSection(getState().commands || [], editingCommandId);
   else if (activeSection === 'data') body.innerHTML = dataSection();
@@ -395,6 +478,8 @@ function wireSection(s) {
     'st-show-tray': ['showTrayIcon', 'checked'],
     'st-open-ext': ['openExternalLinksInBrowser', 'checked'],
     'st-spellcheck': ['spellcheck', 'checked'],
+    'st-pm-enabled': ['passwordManager', 'checked'],
+    'st-reveal-pw': ['revealPassword', 'checked'],
     'st-confirm-delete': ['confirmDelete', 'checked'],
     'st-notify-unfocused': ['notifyOnlyWhenUnfocused', 'checked'],
     'st-flash-taskbar': ['flashTaskbar', 'checked'],
@@ -440,6 +525,50 @@ function wireSection(s) {
       manualLocHint.textContent = manualLocDefaultHint;
       manualLocHint.style.color = '';
       window.myApps.invoke('settings:update', { manualLocation: value });
+    });
+  }
+
+  document.querySelectorAll('.pm-delete').forEach((el) => {
+    el.addEventListener('click', async () => {
+      if (!confirm('Delete this saved password?')) return;
+      await window.myApps.invoke('pm:delete', el.dataset.id);
+      renderSection();
+    });
+  });
+  document.querySelectorAll('.pm-unnever').forEach((el) => {
+    el.addEventListener('click', async () => {
+      await window.myApps.invoke('pm:unnever', el.dataset.host);
+      renderSection();
+    });
+  });
+  const pmKeySave = document.getElementById('pm-key-save');
+  if (pmKeySave) {
+    pmKeySave.addEventListener('click', async () => {
+      const input = document.getElementById('pm-key-input');
+      const err = document.getElementById('pm-key-error');
+      const res = await window.myApps.invoke('pm:key-set', input.value);
+      if (!res.ok) {
+        err.textContent = res.error;
+        err.style.display = '';
+        return;
+      }
+      renderSection();
+    });
+  }
+  const pmKeyClear = document.getElementById('pm-key-clear');
+  if (pmKeyClear) {
+    pmKeyClear.addEventListener('click', async () => {
+      if (!confirm('Remove the saved Export Key? Later exports will leave out saved logins.')) return;
+      await window.myApps.invoke('pm:key-clear');
+      renderSection();
+    });
+  }
+  const pmClearAll = document.getElementById('pm-clear-all');
+  if (pmClearAll) {
+    pmClearAll.addEventListener('click', async () => {
+      if (!confirm('Delete ALL saved passwords? This cannot be undone.')) return;
+      await window.myApps.invoke('pm:clear-all');
+      renderSection();
     });
   }
 
@@ -570,8 +699,21 @@ function wireSection(s) {
       const file = importFile.files[0];
       if (!file) return;
       const text = await file.text();
-      if (!confirm('Importing replaces all current links, groups, and settings. Continue?')) return;
-      await window.myApps.invoke('settings:import', text);
+      importFile.value = '';
+      if (!confirm('Importing replaces all current links, groups, and settings. Saved logins in the file are added to the ones you have. Continue?')) return;
+      let res = await window.myApps.invoke('settings:import', text);
+      // The file holds logins and this PC has no (or the wrong) Export Key.
+      let firstAsk = true;
+      while (res && res.error) {
+        if (res.error === 'unavailable') {
+          alert('Windows encryption is not available, so saved logins cannot be imported. Nothing was changed.');
+          return;
+        }
+        const key = await askImportKey(firstAsk && res.error === 'need-key' ? '' : 'That key did not work. Try again.');
+        if (key === null) return; // cancelled: nothing was changed
+        firstAsk = false;
+        res = await window.myApps.invoke('settings:import', text, key);
+      }
       close();
     });
   }
@@ -589,6 +731,7 @@ export function openSettingsDialog() {
     ['notifications', 'Notifications'],
     ['appearance', 'Appearance'],
     ['performance', 'Performance'],
+    ['passwords', 'Passwords'],
     ['userscripts', 'Userscripts'],
     ['commands', 'Commands'],
     ['data', 'Data'],

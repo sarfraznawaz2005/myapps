@@ -90,6 +90,21 @@ const CH = {
   LINK_PICKED_ELEMENT: 'link:picked-element',
   LINK_GET_LOCATION: 'link:get-location',
 
+  // Password manager: link preload -> main
+  PM_LIST: 'pm:list',
+  PM_FILL: 'pm:fill',
+  PM_CAPTURE: 'pm:capture',
+  PM_PENDING_TAKE: 'pm:pending-take',
+  PM_PENDING_COMMIT: 'pm:pending-commit',
+  PM_PENDING_DISCARD: 'pm:pending-discard',
+  // Password manager: shell (settings dialog) -> main
+  PM_MANAGE_LIST: 'pm:manage-list',
+  PM_DELETE: 'pm:delete',
+  PM_CLEAR_ALL: 'pm:clear-all',
+  PM_UNNEVER: 'pm:unnever',
+  PM_KEY_SET: 'pm:key-set',
+  PM_KEY_CLEAR: 'pm:key-clear',
+
   // Main -> link preload
   LINK_CONFIG: 'link:config',
   LINK_NOTIF_CLICK_PREFIX: 'link:notif-click:',

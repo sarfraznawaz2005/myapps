@@ -13,6 +13,7 @@ const hibernationMod = require('./hibernation');
 const geolocation = require('./geolocation');
 const permissionPrompt = require('./permissionPrompt');
 const updateCheck = require('./updateCheck');
+const passwords = require('./passwords');
 const { applyDnsSettings } = require('./dns');
 
 const INJECTED_SOURCE = fs.readFileSync(
@@ -27,6 +28,8 @@ function buildLinkRuleConfig(link, settings, userscripts) {
       enabled: !!(link.unread.enabled && link.unread.expert.enabled),
     },
     scrollArrows: !!(settings && settings.scrollArrows),
+    passwordManager: !!(settings && settings.passwordManager),
+    revealPassword: !!(settings && settings.revealPassword),
     // Sent as raw (matches + code), one list for every link — the page
     // itself decides whether any pattern matches its own URL. Userscripts
     // only run once per page load, so editing one only takes effect on the
@@ -85,6 +88,7 @@ function initIpc(ctx) {
   ctx.lastCounts = new Map();
   ctx.crashInfo = new Map();
   permissionPrompt.init(ctx);
+  const vaultApi = passwords.init(ctx);
 
   // ---- store change -> push full state to shell ----
   store.onChange((state) => sendToShell(ctx, CH.SHELL_STATE, state));
@@ -409,20 +413,26 @@ function initIpc(ctx) {
     }
     tray.refreshMenu();
     if (Object.prototype.hasOwnProperty.call(patch, 'dnd')) recomputeAggregate(ctx);
-    if (Object.prototype.hasOwnProperty.call(patch, 'scrollArrows')) broadcastLinkConfig(ctx);
+    if (Object.prototype.hasOwnProperty.call(patch, 'scrollArrows') || Object.prototype.hasOwnProperty.call(patch, 'passwordManager') || Object.prototype.hasOwnProperty.call(patch, 'revealPassword')) broadcastLinkConfig(ctx);
     if (Object.prototype.hasOwnProperty.call(patch, 'dnsProvider') || Object.prototype.hasOwnProperty.call(patch, 'dnsCustomServer')) {
       applyDnsSettings(settings);
     }
     return settings;
   });
 
-  ipcMain.handle(CH.SETTINGS_EXPORT, () => store.exportJSON());
+  // Saved logins go into the file only when an Export Key is set, and only
+  // locked with that key (never plain text).
+  ipcMain.handle(CH.SETTINGS_EXPORT, () => passwords.buildExport(store.exportJSON(), vaultApi));
 
-  ipcMain.handle(CH.SETTINGS_IMPORT, (_event, json) => {
+  ipcMain.handle(CH.SETTINGS_IMPORT, (_event, text, typedKey) => {
+    // Unlock first: a wrong key must fail before anything is replaced.
+    const prepared = passwords.prepareImport(text, typedKey, vaultApi);
+    if (prepared.error) return { error: prepared.error };
     viewManager.destroyAll();
     unreadTracker.clear();
     ctx.lastCounts.clear();
-    const state = store.importJSON(json);
+    const state = store.importJSON(prepared.json);
+    vaultApi.mergeImported(prepared.payload);
     tray.refreshMenu();
     return state;
   });

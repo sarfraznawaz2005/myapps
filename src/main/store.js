@@ -28,6 +28,8 @@ function defaultSettings() {
     hibernateOnTrayMinutes: 0, // 0 = disabled
     openExternalLinksInBrowser: true,
     spellcheck: true,
+    passwordManager: false, // opt-in: save + autofill logins (see passwords.js)
+    revealPassword: true, // eye button on password fields to show what was typed
     confirmDelete: true,
     dnsProvider: 'system', // system | google | cloudflare | custom
     dnsCustomServer: '', // DNS-over-HTTPS URL, used when dnsProvider is 'custom'

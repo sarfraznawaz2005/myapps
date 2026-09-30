@@ -20,6 +20,7 @@ const INVOKE_CHANNELS = new Set([
   'nav:go', 'nav:navigate', 'nav:copy-url', 'nav:open-external',
   'metrics:get', 'menu:link-context',
   'link:permission-respond',
+  'pm:manage-list', 'pm:delete', 'pm:clear-all', 'pm:unnever', 'pm:key-set', 'pm:key-clear',
 ]);
 
 const SEND_CHANNELS = new Set(['ui:layout', 'ui:modal-open', 'ui:ready']);

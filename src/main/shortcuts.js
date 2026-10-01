@@ -71,6 +71,7 @@ function attachShortcuts(wc, { store, viewManager, mainWindow, appLock }) {
     if (ctrl && !input.shift && input.key.toLowerCase() === 'l') {
       event.preventDefault();
       if (mainWindow && !mainWindow.isDestroyed()) {
+        viewManager.focusShell();
         mainWindow.webContents.send(CH.SHELL_OPEN_DIALOG, { type: 'focus-url' });
       }
       return;
@@ -79,6 +80,7 @@ function attachShortcuts(wc, { store, viewManager, mainWindow, appLock }) {
     if (ctrl && !input.shift && input.key.toLowerCase() === 'f') {
       event.preventDefault();
       if (mainWindow && !mainWindow.isDestroyed()) {
+        viewManager.focusShell();
         mainWindow.webContents.send(CH.SHELL_OPEN_DIALOG, { type: 'find' });
       }
       return;
@@ -87,6 +89,7 @@ function attachShortcuts(wc, { store, viewManager, mainWindow, appLock }) {
     if (ctrl && !input.shift && input.key.toLowerCase() === 'k') {
       event.preventDefault();
       if (mainWindow && !mainWindow.isDestroyed()) {
+        viewManager.focusShell();
         mainWindow.webContents.send(CH.SHELL_OPEN_DIALOG, { type: 'quick-switch' });
       }
       return;

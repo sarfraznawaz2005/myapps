@@ -165,6 +165,7 @@ if (!gotLock) {
     mainWindow.on('focus', () => {
       const activeId = viewManager.getActiveId();
       if (activeId) unreadTracker.clearNotified(activeId);
+      viewManager.focusActive();
     });
 
     attachShortcuts(mainWindow.webContents, { store, viewManager, mainWindow, appLock });

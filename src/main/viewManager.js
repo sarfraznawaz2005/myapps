@@ -222,7 +222,26 @@ class ViewManager extends EventEmitter {
     const link = this._link(id);
     if (link) this.store.updateLink(id, { lastActiveAt: Date.now() });
     this.emit('active', id);
+    this.focusActive();
     return true;
+  }
+
+  // Give the active page real keyboard focus. A click on the sidebar leaves
+  // focus in the shell, so the page reports document.hasFocus() === false and
+  // sites like WhatsApp Web never mark what you are looking at as read (their
+  // badge, and ours, stay lit until you click inside the page).
+  focusActive() {
+    if (this.locked || this.modalOpen || !this.activeId) return;
+    if (!this.mainWindow || this.mainWindow.isDestroyed() || !this.mainWindow.isFocused()) return;
+    const view = this.views.get(this.activeId);
+    // Focus is cosmetic: it must never break activating a link.
+    try { if (view && !view.webContents.isDestroyed()) view.webContents.focus(); } catch (_e) { /* ignore */ }
+  }
+
+  // Put focus back in the shell (its inputs: URL bar, quick switch, find, lock).
+  focusShell() {
+    // Must never throw: this runs inside locking, which has to complete.
+    try { if (this.mainWindow && !this.mainWindow.isDestroyed()) this.mainWindow.webContents.focus(); } catch (_e) { /* ignore */ }
   }
 
   // Mutes + signals the active view's media to pause without switching which
@@ -255,6 +274,7 @@ class ViewManager extends EventEmitter {
     if (this.locked === !!locked) return;
     this.locked = !!locked;
     if (this.locked) {
+      this.focusShell(); // the lock screen's password box lives in the shell
       for (const [id, view] of this.views) {
         const wc = view.webContents;
         if (wc.isDestroyed()) continue;

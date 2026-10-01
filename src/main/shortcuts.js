@@ -15,7 +15,7 @@ function getFlattenedLinkOrder(store) {
   return out;
 }
 
-// Wires Ctrl+1..9 / Ctrl+R / Ctrl+L / Ctrl+K / F12 / Alt+Left/Right on a
+// Wires Ctrl+1..9 / Ctrl+R / Ctrl+L / Ctrl+K / Ctrl+= - 0 (zoom) / F12 / Alt+Left/Right on a
 // given webContents (the shell window or any embedded link view — Electron
 // has no menu-bar accelerators since Menu.setApplicationMenu(null), so this
 // is the only place these shortcuts are wired).
@@ -35,6 +35,20 @@ function attachShortcuts(wc, { store, viewManager, mainWindow, appLock }) {
       event.preventDefault();
       appLock.lock();
       return;
+    }
+
+    // Zoom the active link: Ctrl+= / Ctrl++ in, Ctrl+- out, Ctrl+0 reset
+    // (number-pad keys too). '+' needs Shift on most layouts, so Shift is allowed.
+    if (ctrl && !input.alt) {
+      const zoomDir = (input.key === '=' || input.key === '+') ? 'in'
+        : (input.key === '-' || input.key === '_') ? 'out'
+          : (input.key === '0' && !input.shift) ? 'reset' : null;
+      if (zoomDir) {
+        event.preventDefault();
+        const id = viewManager.getActiveId();
+        if (id) viewManager.stepZoom(id, zoomDir);
+        return;
+      }
     }
 
     if (ctrl && !input.shift && !input.alt && /^[1-9]$/.test(input.key)) {

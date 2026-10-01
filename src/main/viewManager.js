@@ -12,6 +12,9 @@ const LINK_PRELOAD = path.join(__dirname, '..', '..', 'preload', 'link-preload.j
 // Owns every WebContentsView instance (one per *loaded* link) and lays them
 // out under the shell's toolbar/sidebar chrome. Emits events that ipc.js
 // wires up to unread tracking, notifications, and shell broadcasts.
+// Chrome's zoom presets, limited to the 50%-300% range the Edit dialog allows.
+const ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+
 class ViewManager extends EventEmitter {
   constructor({ mainWindow, store }) {
     super();
@@ -84,6 +87,9 @@ class ViewManager extends EventEmitter {
     const wc = view.webContents;
     attachEditContextMenu(wc, { withPageControls: true, mainWindow: this.mainWindow });
 
+    // Ctrl + mouse wheel. Electron doesn't zoom on its own; it just reports the
+    // request here (Windows/Linux).
+    wc.on('zoom-changed', (_e, direction) => this.stepZoom(id, direction));
     wc.on('page-title-updated', (_e, title) => this.emit('title', id, title));
     wc.on('page-favicon-updated', (_e, favicons) => this.emit('favicon', id, favicons));
 
@@ -116,7 +122,9 @@ class ViewManager extends EventEmitter {
     let firstLoadRetried = false;
     wc.on('did-finish-load', () => {
       hasLoaded = true;
-      try { wc.setZoomFactor(link.zoom || 1); } catch (_e) { /* ignore */ }
+      // Fresh lookup, not the `link` captured when this view was created: that copy
+      // is stale once the zoom changes, and every page load would snap back to it.
+      try { wc.setZoomFactor((this._link(id) || link).zoom || 1); } catch (_e) { /* ignore */ }
       emitStatus();
     });
     wc.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
@@ -412,6 +420,22 @@ class ViewManager extends EventEmitter {
     const view = this.views.get(id) || this.ensureView(id);
     if (!view) return;
     view.webContents.openDevTools({ mode: 'detach' });
+  }
+
+  // Chrome/Edge-style zoom: 'in' / 'out' move to the next preset step, 'reset'
+  // returns to 100%. Saved on the link (same field the Edit dialog uses), so it
+  // survives restarts and hibernation.
+  stepZoom(id, direction) {
+    const link = this._link(id);
+    if (!link) return;
+    const current = link.zoom || 1;
+    let next = current;
+    if (direction === 'reset') next = 1;
+    else if (direction === 'in') next = ZOOM_STEPS.find((z) => z > current + 0.001) || ZOOM_STEPS[ZOOM_STEPS.length - 1];
+    else if (direction === 'out') next = ZOOM_STEPS.slice().reverse().find((z) => z < current - 0.001) || ZOOM_STEPS[0];
+    if (Math.abs(next - current) < 0.001) return;
+    this.store.updateLink(id, { zoom: next });
+    this.updateLinkRuntimeConfig(id);
   }
 
   updateLinkRuntimeConfig(id) {

@@ -10,6 +10,7 @@ const { parseManualLocation } = require('../src/main/geolocation');
 const { getFlattenedLinkOrder } = require('../src/main/shortcuts');
 const { defaultLinkFields, defaultSettings } = require('../src/main/store');
 const { buildLinkRuleConfig } = require('../src/main/ipc');
+const { ViewManager } = require('../src/main/viewManager');
 
 function makeTracker(unreadPatch = {}) {
   const link = { id: 'L1', ...defaultLinkFields(), name: 'L', url: 'https://l.com' };
@@ -146,5 +147,37 @@ describe('buildLinkRuleConfig (what each page is told)', () => {
       { name: 'off', matches: ['*'], code: '2', enabled: false },
     ]);
     assert.deepEqual(cfg.userscripts.map((u) => u.name), ['on']);
+  });
+});
+
+describe('zoom shortcuts (ViewManager.stepZoom)', () => {
+  // stepZoom only needs _link/store/updateLinkRuntimeConfig, so call it on a stand-in.
+  function zoomer(start) {
+    const link = { id: 'z', zoom: start };
+    const self = {
+      _link: () => link,
+      store: { updateLink: (_id, patch) => Object.assign(link, patch) },
+      updateLinkRuntimeConfig: () => {},
+    };
+    return { link, step: (dir) => ViewManager.prototype.stepZoom.call(self, 'z', dir) };
+  }
+
+  test('in/out walk Chrome-style presets and stop at 50% and 300%', () => {
+    const z = zoomer(1);
+    z.step('in'); assert.equal(z.link.zoom, 1.1);
+    z.step('in'); assert.equal(z.link.zoom, 1.25);
+    z.step('out'); z.step('out'); assert.equal(z.link.zoom, 1);
+    for (let i = 0; i < 20; i++) z.step('in');
+    assert.equal(z.link.zoom, 3);
+    for (let i = 0; i < 20; i++) z.step('out');
+    assert.equal(z.link.zoom, 0.5);
+  });
+
+  test('reset returns to 100% and an in-between value snaps to the next step', () => {
+    const z = zoomer(1.7);
+    z.step('in'); assert.equal(z.link.zoom, 1.75);
+    z.step('reset'); assert.equal(z.link.zoom, 1);
+    const odd = zoomer(1.2);
+    odd.step('out'); assert.equal(odd.link.zoom, 1.1);
   });
 });

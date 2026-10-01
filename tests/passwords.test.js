@@ -287,6 +287,17 @@ describe('IPC handlers (security)', () => {
     assert.ok(!JSON.stringify(list).includes('topsecret'));
   });
 
+  test('a captured login is forgotten when its page is destroyed', async () => {
+    const { EventEmitter } = require('node:events');
+    const sender = Object.assign(new EventEmitter(), { id: 42 });
+    const closing = { sender, senderFrame: { url: 'https://example.com/login' } };
+    await h(CH.PM_CAPTURE)(closing, { username: 'alice', password: 'topsecret' });
+    sender.emit('destroyed');
+    assert.equal(await h(CH.PM_PENDING_TAKE)(closing), null);
+    assert.equal(await h(CH.PM_PENDING_COMMIT)(closing), false);
+    assert.equal(sender.listenerCount('destroyed'), 0);
+  });
+
   test('feature OFF: nothing lists, fills or captures', async () => {
     await saveLogin('https://example.com/', 'alice', 'pw1');
     const id = (await h(CH.PM_MANAGE_LIST)(shell())).entries[0].id;

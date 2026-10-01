@@ -339,7 +339,17 @@ if (linkId) {
 
   setupPasswordManager(!!(boot.config && boot.config.passwordManager), !!(boot.config && boot.config.revealPassword));
 
-  if (boot.source) {
+  // A cross-origin iframe (ad, tracker, embed) is not the site itself: it never
+  // raises the site's notifications or badge, and parsing ~20KB of script in
+  // each one adds up on ad-heavy pages. Only the expert-rule engine can need
+  // it there (a rule may target an embedded frame), so inject only if enabled.
+  const topOrigin = window !== window.top && location.ancestorOrigins && location.ancestorOrigins.length
+    ? location.ancestorOrigins[location.ancestorOrigins.length - 1]
+    : null;
+  const thirdPartyFrame = !!topOrigin && /^https?:$/.test(location.protocol) && location.origin !== topOrigin;
+  const expertOn = !!(boot.config && boot.config.expert && boot.config.expert.enabled);
+
+  if (boot.source && (!thirdPartyFrame || expertOn)) {
     // Runs in the main world, before any page script — critical so Slack/
     // WhatsApp/etc. don't capture window.Notification first.
     webFrame.executeJavaScript(boot.source).catch(() => {});

@@ -137,6 +137,9 @@ describe('buildLinkRuleConfig (what each page is told)', () => {
     assert.equal(buildLinkRuleConfig(link, defaultSettings(), []).revealPassword, true);
     assert.equal(buildLinkRuleConfig(link, { revealPassword: false }, []).revealPassword, false);
   });
+  test('notification contents are shown by default', () => {
+    assert.equal(defaultSettings().showNotificationContents, true);
+  });
   test('only enabled userscripts are sent', () => {
     const cfg = buildLinkRuleConfig(link, {}, [
       { name: 'on', matches: ['*'], code: '1', enabled: true },

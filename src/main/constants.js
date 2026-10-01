@@ -4,7 +4,7 @@
 // scripts never have to guess a string literal.
 
 const APP_ID = 'com.myapps.desktopapp';
-const STORE_VERSION = 1;
+const STORE_VERSION = 2;
 
 const TOOLBAR_HEIGHT = 40;
 const SIDEBAR_MIN = 180;

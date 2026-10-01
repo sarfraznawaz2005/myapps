@@ -131,6 +131,9 @@ class ViewManager extends EventEmitter {
     });
     wc.on('render-process-gone', (_e, details) => {
       this.views.delete(id);
+      // The dead view would otherwise stay attached (and alive) forever.
+      try { this.mainWindow.contentView.removeChildView(view); } catch (_err) { /* ignore */ }
+      try { if (!wc.isDestroyed()) wc.close(); } catch (_err) { /* ignore */ }
       this.emit('crash', id, details);
     });
 

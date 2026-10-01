@@ -227,6 +227,19 @@ function init(ctx) {
   const pending = new Map();
   // webContents id -> { username, ts } (step one of a two-step login).
   const lastUsername = new Map();
+  // Pages that closed (or hibernated) must not leave a captured password in
+  // memory until its timeout: drop their entries the moment they go away.
+  const watched = new Set();
+  const forgetOnClose = (sender) => {
+    if (!sender || typeof sender.once !== 'function' || watched.has(sender.id)) return;
+    const id = sender.id;
+    watched.add(id);
+    sender.once('destroyed', () => {
+      watched.delete(id);
+      pending.delete(id);
+      lastUsername.delete(id);
+    });
+  };
 
   const enabled = () => !!ctx.store.getState().settings.passwordManager;
   const fromShell = (e) => !!ctx.mainWindow && !ctx.mainWindow.isDestroyed() && e.sender === ctx.mainWindow.webContents;
@@ -254,6 +267,7 @@ function init(ctx) {
     const { username, password } = payload;
     if (!isStr(username) || !isStr(password)) return false;
     const wcId = event.sender.id;
+    forgetOnClose(event.sender);
 
     if (!password) {
       // Username-only step of a two-step login: remember it for the next step.

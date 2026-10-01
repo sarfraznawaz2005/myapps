@@ -264,9 +264,10 @@ function attachEditContextMenu(webContents, { withPageControls = false, withUrlB
     }
 
     if (!template.length && withPageControls) {
+      const history = webContents.navigationHistory;
       template.push(
-        { label: 'Back', enabled: webContents.canGoBack(), click: () => webContents.goBack() },
-        { label: 'Forward', enabled: webContents.canGoForward(), click: () => webContents.goForward() },
+        { label: 'Back', enabled: history.canGoBack(), click: () => history.goBack() },
+        { label: 'Forward', enabled: history.canGoForward(), click: () => history.goForward() },
         { label: 'Reload', click: () => webContents.reload() },
         { type: 'separator' },
         { label: 'Copy page URL', click: () => clipboard.writeText(webContents.getURL()) }

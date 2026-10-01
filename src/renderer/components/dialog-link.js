@@ -39,7 +39,8 @@ function defaultDraft() {
       favicon: { mode: 'auto' },
       expert: { enabled: false, selector: '', source: 'text', attr: '', regex: '', mode: 'number', aggregate: 'first', intervalMs: 15000 },
     },
-    hibernate: { policy: 'idle', minutes: 30, keepAwake: true },
+    // New links follow Settings > General > Default hibernation policy.
+    hibernate: { policy: getState().settings.defaultHibernate || 'manual', minutes: 30, keepAwake: true },
   };
 }
 

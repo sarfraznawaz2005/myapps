@@ -302,6 +302,11 @@ async function securitySection(s) {
       <div class="hint">${has ? 'A lock password is set. The app locks when it starts, when you click Lock in the sidebar More menu, or press Ctrl+Shift+L.' : 'No lock password is set. When you set one, the app asks for it every time it starts, and no link opens until you unlock.'}</div>
       <div class="hint" style="margin-top:8px;">This keeps people away from the open app. It does not protect the files on your disk. Use a Windows password and BitLocker for that. There is no "forgot password": if you lose it, the lock cannot be reset from inside the app.</div>
     </div>
+    <div class="settings-section">
+      <h3>Notification contents</h3>
+      ${checkboxRow('st-notif-contents', 'Show sender and message text in notifications', s.showNotificationContents !== false)}
+      <div class="hint">When off, notifications only say "New notification" and hide who sent it and what it says. This may not work for all sites: some sites only report an unread count, and those notifications never include message text anyway.</div>
+    </div>
     ${form}
   `;
 }
@@ -536,6 +541,7 @@ function wireSection(s) {
     'st-reveal-pw': ['revealPassword', 'checked'],
     'st-confirm-delete': ['confirmDelete', 'checked'],
     'st-notify-unfocused': ['notifyOnlyWhenUnfocused', 'checked'],
+    'st-notif-contents': ['showNotificationContents', 'checked'],
     'st-flash-taskbar': ['flashTaskbar', 'checked'],
     'st-overlay': ['showOverlayIcon', 'checked'],
     'st-scroll-arrows': ['scrollArrows', 'checked'],

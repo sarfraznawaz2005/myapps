@@ -97,19 +97,41 @@ function isSvg(url) {
 
 // nativeImage only decodes PNG/JPEG — not SVG, WebP (e.g. WhatsApp), AVIF or
 // GIF — unlike Chrome/Edge which render all of them natively for the tab
-// favicon. So we let Chromium decode the image in a throwaway hidden window,
+// favicon. So we let Chromium decode the image in a hidden window,
 // draw it onto a canvas and read it back as PNG (keeps transparency, unlike
 // capturePage which flattens onto the white page background).
-async function rasterizeImage(buf, mimeType) {
-  let win;
-  try {
-    win = new BrowserWindow({
+// One shared window, created on first use and destroyed after a quiet spell,
+// instead of a new renderer process for every favicon.
+const RASTER_IDLE_MS = 30000;
+let rasterWin = null;
+let rasterReady = null;
+let rasterTimer = null;
+
+function closeRasterWindow() {
+  clearTimeout(rasterTimer);
+  if (rasterWin && !rasterWin.isDestroyed()) rasterWin.destroy();
+  rasterWin = null;
+  rasterReady = null;
+}
+
+function getRasterWindow() {
+  clearTimeout(rasterTimer);
+  rasterTimer = setTimeout(closeRasterWindow, RASTER_IDLE_MS);
+  if (!rasterWin || rasterWin.isDestroyed()) {
+    rasterWin = new BrowserWindow({
       show: false,
       width: 64,
       height: 64,
       webPreferences: { offscreen: false, contextIsolation: true, sandbox: true },
     });
-    await win.loadURL('data:text/html,<!doctype html><html><body></body></html>');
+    rasterReady = rasterWin.loadURL('data:text/html,<!doctype html><html><body></body></html>');
+  }
+  return rasterReady.then(() => rasterWin);
+}
+
+async function rasterizeImage(buf, mimeType) {
+  try {
+    const win = await getRasterWindow();
     const src = `data:${mimeType};base64,${buf.toString('base64')}`;
     const pngDataUrl = await win.webContents.executeJavaScript(`new Promise((resolve) => {
       const img = new Image();
@@ -129,9 +151,8 @@ async function rasterizeImage(buf, mimeType) {
     const img = nativeImage.createFromDataURL(pngDataUrl);
     return img.isEmpty() ? null : img;
   } catch (_e) {
+    closeRasterWindow(); // a failed load must not poison later calls
     return null;
-  } finally {
-    if (win && !win.isDestroyed()) win.destroy();
   }
 }
 

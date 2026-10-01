@@ -52,7 +52,17 @@
     this._id = id;
     this._onclick = null;
     notifRegistry.set(id, this);
-    bridge.notify({ notificationId: id, title: String(title || ''), options: options || {} });
+    // Only plain strings cross the bridge. Sites pass whole option objects
+    // (WhatsApp's carries non-cloneable values), and forwarding those throws
+    // inside the constructor — the page swallows it and no toast ever shows.
+    var opts = options || {};
+    var safe = {};
+    ['body', 'icon', 'tag'].forEach(function (k) {
+      if (typeof opts[k] === 'string') safe[k] = opts[k];
+    });
+    try {
+      bridge.notify({ notificationId: id, title: String(title || ''), options: safe });
+    } catch (e) { /* bridge unavailable; nothing to forward */ }
   }
   WrapNotification.permission = 'granted';
   WrapNotification.requestPermission = function (cb) {

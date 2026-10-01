@@ -163,6 +163,10 @@ Hibernating fully closes the link's renderer (`removeChildView` +
 Manager if you change this code. A hibernated link **cannot report
 anything**, so:
 
+- Links never hibernate on their own by default (policy "Manual only"); you
+  hibernate one yourself, or leave "open on startup" off so it never loads.
+  A hibernated link is simply off — no notifications, no memory — until you
+  open it.
 - `keepAwake` defaults to `true` — hibernation and monitoring are honestly
   mutually exclusive unless you opt out.
 - The edit dialog shows a warning the moment a link's policy would let it

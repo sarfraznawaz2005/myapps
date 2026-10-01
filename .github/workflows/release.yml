@@ -18,13 +18,16 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install dependencies
         run: npm ci
 
       - name: Generate icons
         run: npm run make-icons
+
+      - name: Run tests
+        run: npm test
 
       - name: Build (Setup + portable zip)
         run: npm run dist -- --publish never

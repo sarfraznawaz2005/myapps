@@ -7,6 +7,7 @@ const favicon = require('./favicon');
 
 const ICON_FALLBACK = path.join(__dirname, '..', '..', 'assets', 'icon.png');
 const SUPPRESS_AFTER_LOAD_MS = 10000;
+const SYNTH_DELAY_MS = 3000;
 
 class NotificationsController {
   constructor({ store, viewManager, getMainWindow }) {
@@ -70,8 +71,9 @@ class NotificationsController {
     this.everSentReal.add(linkId);
     if (this._shouldSuppress(link)) return;
 
-    // Locked: a toast must not show message text on a locked screen.
-    const locked = !!this.viewManager.locked;
+    // Locked, or the user turned contents off: a toast must not show message text.
+    const { showNotificationContents } = this.store.getState().settings;
+    const locked = !!this.viewManager.locked || showNotificationContents === false;
     const iconPath = favicon.getCachedFaviconPath(linkId) || ICON_FALLBACK;
     const notif = new Notification({
       title: locked ? `${link.name}: New notification` : `${link.name}: ${payload.title || ''}`,
@@ -127,6 +129,19 @@ class NotificationsController {
     }
     if (!title) return;
 
+    // The unread signal (title/favicon/badge) often lands a moment BEFORE the
+    // page's real notification (WhatsApp does this). Wait briefly and drop the
+    // guess if the real one shows up, or the user gets two toasts.
+    setTimeout(() => {
+      if (this.everSentReal.has(linkId)) return;
+      const current = this._link(linkId);
+      if (!current || this._shouldSuppress(current)) return;
+      this._showSynthesized(current, title, body);
+    }, SYNTH_DELAY_MS);
+  }
+
+  _showSynthesized(link, title, body) {
+    const linkId = link.id;
     const iconPath = favicon.getCachedFaviconPath(linkId) || ICON_FALLBACK;
     const notif = new Notification({
       title: `${link.name}: ${title}`,

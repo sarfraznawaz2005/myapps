@@ -20,14 +20,15 @@ function defaultSettings() {
     showOverlayIcon: true,
     overlayStyle: 'digit', // digit | dot
     notifyOnlyWhenUnfocused: true,
+    showNotificationContents: true, // false: toasts hide the sender and message text
     dnd: { enabled: false, until: null },
     theme: 'dark', // dark | light
     accent: '#3b82f6',
     scrollArrows: false,
-    defaultHibernate: 'idle', // never | idle | manual
+    defaultHibernate: 'manual', // never | idle | manual
     hibernateOnTrayMinutes: 0, // 0 = disabled
     openExternalLinksInBrowser: true,
-    spellcheck: true,
+    spellcheck: false, // opt-in: loads a dictionary + spell-check thread per link
     passwordManager: false, // opt-in: save + autofill logins (see passwords.js)
     lockIdleMinutes: 0, // 0 = never auto-lock; only used when a lock password is set
     revealPassword: true, // eye button on password fields to show what was typed
@@ -91,7 +92,7 @@ function defaultLinkFields() {
         intervalMs: 15000,
       },
     },
-    hibernate: { policy: 'idle', minutes: 30, keepAwake: true },
+    hibernate: { policy: 'manual', minutes: 30, keepAwake: true },
     // mediaDecided/locationDecided: false means "never asked yet" — the live
     // Allow/Block prompt shows the first time this link requests that
     // permission, then flips the flag true so it never asks again (same as
@@ -108,9 +109,22 @@ function defaultLinkFields() {
 }
 
 // MIGRATIONS maps "state was version N" -> function that mutates state to version N+1.
-// None needed yet; kept so future schema changes have a real place to land.
 const MIGRATIONS = {
-  // 1: (state) => { ... state.version = 2; return state; },
+  // 1 -> 2: nothing hibernates on its own by default; only the user hibernates
+  // a link. Links saved with the old default ("idle" + keepAwake) never
+  // actually hibernated, so switching them to "manual" changes no behavior.
+  // A link whose user turned keepAwake off on purpose keeps its idle policy.
+  1: (state) => {
+    if (Array.isArray(state.links)) {
+      state.links = state.links.map((l) => {
+        const h = l && l.hibernate;
+        if (h && h.policy === 'idle' && h.keepAwake !== false) return { ...l, hibernate: { ...h, policy: 'manual' } };
+        return l;
+      });
+    }
+    state.version = 2;
+    return state;
+  },
 };
 
 function runMigrations(state) {
@@ -256,7 +270,10 @@ class Store {
 
   createLink(data) {
     const id = genId();
-    const merged = deepMerge(defaultLinkFields(), data || {});
+    const base = defaultLinkFields();
+    const defPolicy = this.state.settings.defaultHibernate;
+    if (['never', 'idle', 'manual'].includes(defPolicy)) base.hibernate.policy = defPolicy;
+    const merged = deepMerge(base, data || {});
     const groupId = merged.groupId || null;
     const order = this.state.links.filter((l) => l.groupId === groupId).length;
     const link = {

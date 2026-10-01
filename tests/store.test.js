@@ -24,7 +24,44 @@ describe('Store settings + defaults', () => {
     s.load();
     assert.equal(s.getState().settings.theme, 'light');
     assert.equal(s.getState().settings.passwordManager, false);
-    assert.equal(s.getState().settings.spellcheck, true);
+    assert.equal(s.getState().settings.spellcheck, false);
+  });
+
+  test('new links never hibernate on their own (manual policy, keepAwake on)', () => {
+    const s = new Store();
+    s.load();
+    const link = s.createLink({ name: 'A', url: 'https://example.com' });
+    assert.equal(link.hibernate.policy, 'manual');
+    assert.equal(link.hibernate.keepAwake, true);
+    assert.equal(defaultSettings().defaultHibernate, 'manual');
+  });
+
+  test('the default hibernation setting applies to new links, unless the caller sets one', () => {
+    const s = new Store();
+    s.load();
+    s.updateSettings({ defaultHibernate: 'idle' });
+    assert.equal(s.createLink({ name: 'A', url: 'https://a.com' }).hibernate.policy, 'idle');
+    assert.equal(s.createLink({ name: 'B', url: 'https://b.com', hibernate: { policy: 'never' } }).hibernate.policy, 'never');
+  });
+
+  test('migration 1 -> 2 makes old idle+keepAwake links manual, leaves deliberate choices alone', () => {
+    const base = { url: 'https://x.com', partition: 'persist:link-x' };
+    fs.writeFileSync(path.join(stub.userData, 'store.json'), JSON.stringify({
+      version: 1,
+      links: [
+        { ...base, id: 'a', name: 'A', hibernate: { policy: 'idle', minutes: 30, keepAwake: true } },
+        { ...base, id: 'b', name: 'B', hibernate: { policy: 'idle', minutes: 10, keepAwake: false } },
+        { ...base, id: 'c', name: 'C', hibernate: { policy: 'never', minutes: 30, keepAwake: true } },
+      ],
+    }));
+    const s = new Store();
+    s.load();
+    const [a, b2, c] = s.getState().links;
+    assert.equal(a.hibernate.policy, 'manual');
+    assert.equal(a.hibernate.keepAwake, true);
+    assert.equal(b2.hibernate.policy, 'idle'); // user turned keepAwake off on purpose
+    assert.equal(c.hibernate.policy, 'never');
+    assert.equal(s.getState().version, 2);
   });
 
   test('updateSettings merges, nested dnd too', () => {

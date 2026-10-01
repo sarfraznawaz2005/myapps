@@ -20,7 +20,10 @@ const { applyDnsSettings } = require('./src/main/dns');
 
 // Must be called before whenReady(), and must match build.appId in
 // package.json, or packaged Windows notifications show as "electron.app.Electron".
-app.setAppUserModelId(APP_ID);
+// Dev runs (npm start) get their own ID: Windows ties the toast name/icon and the
+// taskbar icon to this ID, and a dev run would otherwise register it as "Electron"
+// and hijack the installed/unpacked app's identity.
+app.setAppUserModelId(app.isPackaged ? APP_ID : `${APP_ID}.dev`);
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {

@@ -29,6 +29,7 @@ const CH = {
   LINK_DEVTOOLS: 'link:devtools',
   LINK_ZOOM: 'link:zoom',
   LINK_VIEW_MODE: 'link:view-mode',
+  LINK_DARK_MODE: 'link:dark-mode',
   LINK_TEST_EXPERT_RULE: 'link:test-expert-rule',
   LINK_PICK_ELEMENT: 'link:pick-element',
   LINK_PROBE_URL: 'link:probe-url',

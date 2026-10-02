@@ -20,6 +20,11 @@ const ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 
 // so both server-side (user-agent) and CSS (width) mobile layouts kick in.
 const MOBILE_VIEW_WIDTH = 412;
 
+const DARK_MODE_CSS = `
+  html { filter: invert(1) hue-rotate(180deg) !important; background: #fff !important; }
+  img, picture, video, canvas { filter: invert(1) hue-rotate(180deg) !important; }
+`;
+
 // Pure, so it can be tested. Desktop honours the link's own custom user-agent
 // (Edit dialog); with none, it is the session's normal (Electron-free) one.
 function userAgentFor(link, sessionUserAgent, chromeVersion) {
@@ -69,6 +74,7 @@ class ViewManager extends EventEmitter {
     super();
     this.mainWindow = mainWindow;
     this.store = store;
+    this._darkCssKeys = new Map(); // linkId -> key of the dark-mode CSS in the current page
     this._modeJobs = new Map(); // linkId -> last queued view-mode job (see _applyViewMode)
     this.views = new Map(); // linkId -> WebContentsView
     this.activeId = null;
@@ -150,6 +156,8 @@ class ViewManager extends EventEmitter {
     // Ctrl + mouse wheel. Electron doesn't zoom on its own; it just reports the
     // request here (Windows/Linux).
     wc.on('zoom-changed', (_e, direction) => this.stepZoom(id, direction));
+    // Inserted CSS belongs to one document, so every new page load needs it again.
+    wc.on('dom-ready', () => this._applyDarkMode(id));
     wc.on('page-title-updated', (_e, title) => this.emit('title', id, title));
     wc.on('page-favicon-updated', (_e, favicons) => this.emit('favicon', id, favicons));
 
@@ -508,6 +516,35 @@ class ViewManager extends EventEmitter {
     this._applyViewMode(id);
   }
 
+  // Dark mode for any site: invert the page, then flip media back so photos and
+  // video keep their real colors. Sites with a dark theme of their own look
+  // light when this is on; that is what the toggle is for.
+  async _applyDarkMode(id) {
+    const link = this._link(id);
+    const view = this.views.get(id);
+    if (!link || !view || view.webContents.isDestroyed()) return;
+    const wc = view.webContents;
+    const oldKey = this._darkCssKeys.get(id);
+    this._darkCssKeys.delete(id);
+    try {
+      if (oldKey) await wc.removeInsertedCSS(oldKey);
+    } catch (_e) { /* the old document is gone, nothing to remove */ }
+    if (!link.darkMode || wc.isDestroyed()) return;
+    try {
+      const key = await wc.insertCSS(DARK_MODE_CSS);
+      this._darkCssKeys.set(id, key);
+    } catch (_e) { /* page went away mid-insert */ }
+  }
+
+  // Toolbar toggle. Saved on the link, so it survives hibernation and restarts.
+  setDarkMode(id, on) {
+    const link = this._link(id);
+    if (!link || !!link.darkMode === !!on) return false;
+    this.store.updateLink(id, { darkMode: !!on });
+    this._applyDarkMode(id);
+    return true;
+  }
+
   // Toolbar toggle. Saved on the link, so it survives hibernation and restarts.
   // A user-agent only applies to new requests, so a loaded page is reloaded.
   async setViewMode(id, mode) {
@@ -527,6 +564,7 @@ class ViewManager extends EventEmitter {
   hibernate(id) {
     const view = this.views.get(id);
     if (!view) return false;
+    this._darkCssKeys.delete(id);
     try {
       if (this.activeId === id) this.activeId = null;
       this.mainWindow.contentView.removeChildView(view);

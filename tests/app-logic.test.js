@@ -289,3 +289,58 @@ describe('periodic reload', () => {
     assert.equal(h.effectiveKeepAwake({ reloadMinutes: 0, hibernate: { keepAwake: true } }), true);
   });
 });
+
+describe('dark mode toggle (ViewManager.setDarkMode)', () => {
+  function darkHarness(start) {
+    const link = { id: 'd', darkMode: start };
+    const inserted = [];
+    const removed = [];
+    const wc = {
+      isDestroyed: () => false,
+      insertCSS: async (css) => { inserted.push(css); return `key${inserted.length}`; },
+      removeInsertedCSS: async (key) => { removed.push(key); },
+    };
+    const self = {
+      _link: () => link,
+      views: new Map([['d', { webContents: wc }]]),
+      _darkCssKeys: new Map(),
+      store: { updateLink: (_id, patch) => Object.assign(link, patch) },
+    };
+    self._applyDarkMode = ViewManager.prototype._applyDarkMode.bind(self);
+    return { link, inserted, removed, self, set: (on) => ViewManager.prototype.setDarkMode.call(self, 'd', on) };
+  }
+  const tick = () => new Promise((r) => setImmediate(r));
+
+  test('defaults to off', () => {
+    assert.equal(defaultLinkFields().darkMode, false);
+  });
+
+  test('turning on saves it on the link and inserts the CSS', async () => {
+    const h = darkHarness(false);
+    assert.equal(h.set(true), true);
+    await tick();
+    assert.equal(h.link.darkMode, true);
+    assert.equal(h.inserted.length, 1);
+    assert.match(h.inserted[0], /invert\(1\)/);
+  });
+
+  test('turning off removes the inserted CSS', async () => {
+    const h = darkHarness(false);
+    h.set(true); await tick();
+    h.set(false); await tick();
+    assert.equal(h.link.darkMode, false);
+    assert.deepEqual(h.removed, ['key1']);
+    assert.equal(h.inserted.length, 1);
+  });
+
+  test('a new page load re-applies it when the link is saved as dark', async () => {
+    const h = darkHarness(true); // as if restored from disk after a restart
+    await h.self._applyDarkMode('d');
+    assert.equal(h.inserted.length, 1);
+  });
+
+  test('setting the same value again does nothing', () => {
+    const h = darkHarness(true);
+    assert.equal(h.set(true), false);
+  });
+});

@@ -20,6 +20,7 @@ function render() {
       <input id="tb-url" type="text" placeholder="Select a link…" />
     </div>
     <button id="tb-viewmode" title="Switch to mobile view">${iconHtml('desktop')}</button>
+    <button id="tb-dark" title="Dark mode">${iconHtml('moon')}</button>
     <button id="tb-zoom-out" title="Zoom out (Ctrl+-)">${iconHtml('minus')}</button>
     <button id="tb-zoom-reset" title="Reset zoom to 100% (Ctrl+0)">100%</button>
     <button id="tb-zoom-in" title="Zoom in (Ctrl++)">${iconHtml('plus')}</button>
@@ -47,6 +48,11 @@ function render() {
     const id = getState().activeLinkId;
     const link = id ? getLink(id) : null;
     if (link) window.myApps.invoke('link:view-mode', id, link.viewMode === 'mobile' ? 'desktop' : 'mobile');
+  });
+  document.getElementById('tb-dark').addEventListener('click', () => {
+    const id = getState().activeLinkId;
+    const link = id ? getLink(id) : null;
+    if (link) window.myApps.invoke('link:dark-mode', id, !link.darkMode);
   });
   const zoomActive = (direction) => {
     const id = getState().activeLinkId;
@@ -165,6 +171,12 @@ export function update() {
   viewBtn.innerHTML = iconHtml(mobile ? 'mobile' : 'desktop');
   viewBtn.title = mobile ? 'Mobile view (click for desktop view)' : 'Desktop view (click for mobile view)';
   viewBtn.style.color = mobile ? 'var(--accent)' : '';
+  const darkBtn = document.getElementById('tb-dark');
+  const dark = !!link && !!link.darkMode;
+  darkBtn.disabled = !link;
+  darkBtn.innerHTML = iconHtml(dark ? 'sun' : 'moon');
+  darkBtn.title = dark ? 'Dark mode on (click to turn off)' : 'Dark mode off (click to turn on)';
+  darkBtn.style.color = dark ? 'var(--accent)' : '';
   const zoom = link ? (link.zoom || 1) : 1;
   const zoomPct = Math.round(zoom * 100);
   const zoomReset = document.getElementById('tb-zoom-reset');

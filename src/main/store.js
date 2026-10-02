@@ -73,6 +73,7 @@ function defaultLinkFields() {
     reloadMinutes: 0, // periodic reload every N minutes; 0 = off
     viewMode: 'desktop', // desktop | mobile (mobile = phone user-agent + narrow touch screen)
     zoom: 1,
+    darkMode: false, // toolbar toggle: force a dark look on this link's pages
     muted: false,
     keepPlaying: false,
     enabled: true,

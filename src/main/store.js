@@ -75,6 +75,20 @@ function defaultLinkFields() {
     viewMode: 'desktop', // desktop | mobile (mobile = phone user-agent + narrow touch screen)
     zoom: 1,
     darkMode: false, // toolbar toggle: force a dark look on this link's pages
+    // WhatsApp Web extras (only used when the link is web.whatsapp.com). Per link,
+    // so a standard and a business WhatsApp keep separate choices.
+    whatsapp: {
+      blurNames: false,
+      blurPhotos: false,
+      blurMessages: false,
+      blurRecent: false,
+      hideOnline: false,
+      hideBlueTicks: false,
+      viewStatusPrivately: false,
+      restoreDeleted: false,
+      notifyOnline: false,
+      notifyContacts: [], // names or phone numbers to notify about
+    },
     muted: false,
     keepPlaying: false,
     enabled: true,

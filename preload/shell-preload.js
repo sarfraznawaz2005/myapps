@@ -9,6 +9,7 @@ const INVOKE_CHANNELS = new Set([
   'app:get-state', 'app:quit', 'app:check-update', 'app:open-external-url',
   'link:create', 'link:update', 'link:delete', 'link:reorder', 'link:activate',
   'link:hibernate', 'link:reload', 'link:clear-data', 'link:devtools', 'link:zoom', 'link:view-mode', 'link:dark-mode',
+  'link:whatsapp-get', 'link:whatsapp-set', 'link:whatsapp-chat',
   'link:test-expert-rule', 'link:pick-element', 'link:probe-url',
   'link:find', 'link:find-stop',
   'group:create', 'group:update', 'group:delete', 'group:reorder',

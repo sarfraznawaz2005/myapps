@@ -3,6 +3,7 @@ import { icons } from '../icons.js';
 import { openLinkDialog } from './dialog-link.js';
 import { openNoteDialog } from './dialog-note.js';
 import { openKeywordsDialog } from './dialog-keywords.js';
+import { openWhatsappDialog } from './dialog-whatsapp.js';
 
 const toolbarEl = document.getElementById('toolbar');
 let urlEditing = false;
@@ -22,13 +23,14 @@ function render() {
     </div>
     <button id="tb-viewmode" title="Switch to mobile view">${iconHtml('desktop')}</button>
     <button id="tb-dark" title="Dark mode">${iconHtml('moon')}</button>
+    <button id="tb-highlight" title="Highlight keywords">${iconHtml('highlighter')}</button>
+    <button id="tb-note" title="Add note">${iconHtml('note')}</button>
+    <button id="tb-whatsapp" title="WhatsApp extras" style="display:none">${iconHtml('eyeOff')}</button>
+    <button id="tb-copy" title="Copy URL">${iconHtml('copy')}</button>
+    <button id="tb-external" title="Open in browser">${iconHtml('external')}</button>
     <button id="tb-zoom-out" title="Zoom out (Ctrl+-)">${iconHtml('minus')}</button>
     <button id="tb-zoom-reset" title="Reset zoom to 100% (Ctrl+0)">100%</button>
     <button id="tb-zoom-in" title="Zoom in (Ctrl++)">${iconHtml('plus')}</button>
-    <button id="tb-highlight" title="Highlight keywords">${iconHtml('highlighter')}</button>
-    <button id="tb-note" title="Add note">${iconHtml('note')}</button>
-    <button id="tb-copy" title="Copy URL">${iconHtml('copy')}</button>
-    <button id="tb-external" title="Open in browser">${iconHtml('external')}</button>
     <button id="tb-more" title="More">${iconHtml('more')}</button>
     <div id="find-bar">
       <input id="find-input" type="text" placeholder="Find on page" />
@@ -50,6 +52,10 @@ function render() {
     const id = getState().activeLinkId;
     const link = id ? getLink(id) : null;
     if (link) window.myApps.invoke('link:view-mode', id, link.viewMode === 'mobile' ? 'desktop' : 'mobile');
+  });
+  document.getElementById('tb-whatsapp').addEventListener('click', () => {
+    const id = getState().activeLinkId;
+    if (id) openWhatsappDialog(id);
   });
   document.getElementById('tb-dark').addEventListener('click', () => {
     const id = getState().activeLinkId;
@@ -174,6 +180,14 @@ export function update() {
   viewBtn.innerHTML = iconHtml(mobile ? 'mobile' : 'desktop');
   viewBtn.title = mobile ? 'Mobile view (click for desktop view)' : 'Desktop view (click for mobile view)';
   viewBtn.style.color = mobile ? 'var(--accent)' : '';
+  // WhatsApp extras: only for a link that is on WhatsApp Web right now.
+  const waBtn = document.getElementById('tb-whatsapp');
+  let onWhatsapp = false;
+  try { onWhatsapp = new URL(status.url || (link && link.url) || '').hostname === 'web.whatsapp.com'; } catch (_e) { /* no URL yet */ }
+  waBtn.style.display = link && onWhatsapp ? '' : 'none';
+  const waOn = !!link && !!link.whatsapp && Object.entries(link.whatsapp).some(([k, v]) => k !== 'notifyContacts' && v === true);
+  waBtn.style.color = waOn ? 'var(--accent)' : '';
+  waBtn.title = waOn ? 'WhatsApp extras (some are on)' : 'WhatsApp extras';
   const darkBtn = document.getElementById('tb-dark');
   const dark = !!link && !!link.darkMode;
   darkBtn.disabled = !link;

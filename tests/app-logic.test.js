@@ -9,7 +9,7 @@ const { normalizeUrl } = require('../src/main/navigation');
 const { parseManualLocation } = require('../src/main/geolocation');
 const { getFlattenedLinkOrder } = require('../src/main/shortcuts');
 const { defaultLinkFields, defaultSettings } = require('../src/main/store');
-const { buildLinkRuleConfig, cleanKeywords } = require('../src/main/ipc');
+const { buildLinkRuleConfig, cleanKeywords, cleanWhatsapp, whatsappChatUrl } = require('../src/main/ipc');
 const { ViewManager, userAgentFor, clientHintsFor } = require('../src/main/viewManager');
 const { PeriodicReloadController, periodMs } = require('../src/main/periodicReload');
 const { HibernationController } = require('../src/main/hibernation');
@@ -361,5 +361,50 @@ describe('keyword highlighter settings', () => {
   test('keywords reach every link config', () => {
     const settings = { ...defaultSettings(), highlightKeywords: ['alpha', 'beta'] };
     assert.deepEqual(buildLinkRuleConfig(defaultLinkFields(), settings, []).highlightKeywords, ['alpha', 'beta']);
+  });
+});
+
+describe('WhatsApp extras settings (per link)', () => {
+  test('every option is off by default, with no contacts', () => {
+    const w = defaultLinkFields().whatsapp;
+    assert.equal(Object.entries(w).filter(([k, v]) => k !== 'notifyContacts' && v !== false).length, 0);
+    assert.deepEqual(w.notifyContacts, []);
+  });
+
+  test('cleanWhatsapp keeps known keys only and coerces flags to booleans', () => {
+    const out = cleanWhatsapp({ blurNames: 1, hideOnline: 'yes', evil: true, __proto__: { x: 1 } });
+    assert.deepEqual(out, { blurNames: true, hideOnline: true });
+  });
+
+  test('cleanWhatsapp trims, de-duplicates and caps the contact list', () => {
+    const out = cleanWhatsapp({ notifyContacts: [' Alice ', 'alice', '', 5, 'x'.repeat(200)] });
+    assert.equal(out.notifyContacts.length, 2);
+    assert.equal(out.notifyContacts[0], 'Alice');
+    assert.equal(out.notifyContacts[1].length, 80);
+    assert.equal(cleanWhatsapp({ notifyContacts: Array.from({ length: 80 }, (_, i) => `c${i}`) }).notifyContacts.length, 50);
+  });
+
+  test('each link config carries its own choices', () => {
+    const a = { ...defaultLinkFields(), whatsapp: { ...defaultLinkFields().whatsapp, hideOnline: true } };
+    const b = defaultLinkFields();
+    assert.equal(buildLinkRuleConfig(a, defaultSettings(), []).whatsapp.hideOnline, true);
+    assert.equal(buildLinkRuleConfig(b, defaultSettings(), []).whatsapp.hideOnline, false);
+  });
+});
+
+describe('WhatsApp chat with a number', () => {
+  test('keeps digits only and builds the web.whatsapp.com send URL', () => {
+    assert.equal(whatsappChatUrl('+1 (555) 123-4567'), 'https://web.whatsapp.com/send?phone=15551234567');
+  });
+
+  test('rejects numbers that are too short, too long or not numbers', () => {
+    assert.equal(whatsappChatUrl('12345'), null);
+    assert.equal(whatsappChatUrl('1'.repeat(16)), null);
+    assert.equal(whatsappChatUrl('abc'), null);
+    assert.equal(whatsappChatUrl(null), null);
+  });
+
+  test('cannot be used to inject other URL parts', () => {
+    assert.equal(whatsappChatUrl('15551234567&text=hi#x'), 'https://web.whatsapp.com/send?phone=15551234567');
   });
 });

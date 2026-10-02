@@ -16,6 +16,11 @@ const updateCheck = require('./updateCheck');
 const passwords = require('./passwords');
 const { applyDnsSettings } = require('./dns');
 
+const WHATSAPP_SOURCE = fs.readFileSync(
+  path.join(__dirname, '..', '..', 'preload', 'whatsapp-main-world.js'),
+  'utf8'
+);
+
 const INJECTED_SOURCE = fs.readFileSync(
   path.join(__dirname, '..', '..', 'preload', 'inject-main-world.js'),
   'utf8'
@@ -38,6 +43,47 @@ function cleanKeywords(list) {
   return out;
 }
 
+const WHATSAPP_FLAGS = ['blurNames', 'blurPhotos', 'blurMessages', 'blurRecent', 'hideOnline',
+  'hideBlueTicks', 'viewStatusPrivately', 'restoreDeleted', 'notifyOnline'];
+
+// Only known keys, only booleans / a short list of short strings.
+function cleanWhatsapp(input) {
+  const src = input && typeof input === 'object' ? input : {};
+  const out = {};
+  for (const key of WHATSAPP_FLAGS) {
+    if (key in src) out[key] = !!src[key];
+  }
+  if ('notifyContacts' in src) {
+    const seen = new Set();
+    out.notifyContacts = [];
+    for (const raw of Array.isArray(src.notifyContacts) ? src.notifyContacts : []) {
+      const entry = typeof raw === 'string' ? raw.trim().slice(0, 80) : '';
+      if (!entry || seen.has(entry.toLowerCase())) continue;
+      seen.add(entry.toLowerCase());
+      out.notifyContacts.push(entry);
+      if (out.notifyContacts.length >= 50) break;
+    }
+  }
+  return out;
+}
+
+// Which options could attach inside the page: { optionName: 'ok' | 'missing' }.
+function cleanWhatsappStatus(input) {
+  const out = {};
+  const src = input && typeof input === 'object' ? input : {};
+  for (const key of WHATSAPP_FLAGS) {
+    if (src[key] === 'ok' || src[key] === 'missing') out[key] = src[key];
+  }
+  return out;
+}
+
+// "Chat with a number": digits only, 7 to 15 of them (international format).
+function whatsappChatUrl(raw) {
+  const digits = String(raw == null ? '' : raw).replace(/\D/g, '');
+  if (digits.length < 7 || digits.length > 15) return null;
+  return `https://web.whatsapp.com/send?phone=${digits}`;
+}
+
 function buildLinkRuleConfig(link, settings, userscripts) {
   return {
     expert: {
@@ -46,6 +92,7 @@ function buildLinkRuleConfig(link, settings, userscripts) {
     },
     scrollArrows: !!(settings && settings.scrollArrows),
     highlightKeywords: cleanKeywords(settings && settings.highlightKeywords),
+    whatsapp: cleanWhatsapp(link.whatsapp),
     passwordManager: !!(settings && settings.passwordManager),
     revealPassword: !!(settings && settings.revealPassword),
     // Sent as raw (matches + code), one list for every link — the page
@@ -233,7 +280,37 @@ function initIpc(ctx) {
     event.returnValue = {
       config: link ? buildLinkRuleConfig(link, settings, userscripts) : { expert: { enabled: false }, scrollArrows: false, highlightKeywords: cleanKeywords(settings.highlightKeywords), userscripts: [] },
       source: INJECTED_SOURCE,
+      whatsappSource: WHATSAPP_SOURCE,
     };
+  });
+
+  // WhatsApp extras. Choices come from the toolbar dialog in the shell; the
+  // page only reports back which options could attach.
+  const whatsappStatus = new Map(); // linkId -> { option: 'ok' | 'missing' }
+  const whatsappSettingsOf = (link) => ({ notifyContacts: [], ...cleanWhatsapp(link.whatsapp) });
+  ipcMain.on(CH.LINK_WHATSAPP_STATUS, (_event, linkId, status) => {
+    whatsappStatus.set(linkId, cleanWhatsappStatus(status));
+  });
+  handle(CH.LINK_WHATSAPP_GET, (_event, id) => {
+    const link = store.getState().links.find((l) => l.id === id);
+    if (!link) return null;
+    return { settings: whatsappSettingsOf(link), status: whatsappStatus.get(id) || {} };
+  });
+  handle(CH.LINK_WHATSAPP_SET, (_event, id, patch) => {
+    const link = store.updateLink(id, { whatsapp: cleanWhatsapp(patch) });
+    if (!link) return null;
+    pushLinkConfig(ctx, link);
+    return whatsappSettingsOf(link);
+  });
+  handle(CH.LINK_WHATSAPP_CHAT, (_event, id, raw) => {
+    const url = whatsappChatUrl(raw);
+    const view = viewManager.getView(id);
+    if (!url || !view || view.webContents.isDestroyed()) return false;
+    try {
+      if (new URL(view.webContents.getURL()).hostname !== 'web.whatsapp.com') return false;
+    } catch (_e) { return false; }
+    view.webContents.loadURL(url);
+    return true;
   });
 
   ipcMain.on(CH.LINK_BADGE, (_event, linkId, count) => unreadTracker.reportBadge(linkId, count));
@@ -628,4 +705,4 @@ function initIpc(ctx) {
   });
 }
 
-module.exports = { initIpc, buildLinkRuleConfig, cleanKeywords, sendToShell, recomputeAggregate };
+module.exports = { initIpc, buildLinkRuleConfig, cleanKeywords, cleanWhatsapp, whatsappChatUrl, sendToShell, recomputeAggregate };

@@ -411,6 +411,7 @@ if (linkId) {
     pickedElement: (payload) => ipcRenderer.send('link:picked-element', linkId, payload),
     getLocation: () => ipcRenderer.invoke('link:get-location', linkId),
     onNotifClick: (cb) => ipcRenderer.on(`link:notif-click:${linkId}`, (_e, notificationId) => cb(notificationId)),
+    setWhatsappStatus: (status) => ipcRenderer.send('link:whatsapp-status', linkId, status),
     onConfigUpdate: (cb) => ipcRenderer.on('link:config', (_e, cfg) => cb(cfg)),
     onStartPicker: (cb) => ipcRenderer.on('link:start-picker', () => cb()),
     onStopPicker: (cb) => ipcRenderer.on('link:stop-picker', () => cb()),
@@ -435,6 +436,12 @@ if (linkId) {
     // Runs in the main world, before any page script — critical so Slack/
     // WhatsApp/etc. don't capture window.Notification first.
     webFrame.executeJavaScript(boot.source).catch(() => {});
+  }
+
+  // WhatsApp Web extras (blur, invisible mode, ...): only on WhatsApp itself,
+  // top frame only. It is its own file so other sites never run any of it.
+  if (boot.whatsappSource && window === window.top && location.hostname === 'web.whatsapp.com') {
+    webFrame.executeJavaScript(boot.whatsappSource).catch(() => {});
   }
 
   // Userscripts: each matching one gets its own top-level executeJavaScript

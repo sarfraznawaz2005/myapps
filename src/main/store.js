@@ -70,6 +70,8 @@ function defaultLinkFields() {
   return {
     icon: { mode: 'auto', path: null, url: null, fallbackLetter: null, fallbackColor: '#3b82f6' },
     userAgent: null,
+    reloadMinutes: 0, // periodic reload every N minutes; 0 = off
+    viewMode: 'desktop', // desktop | mobile (mobile = phone user-agent + narrow touch screen)
     zoom: 1,
     muted: false,
     keepPlaying: false,

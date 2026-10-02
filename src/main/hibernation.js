@@ -2,6 +2,8 @@
 
 const { app } = require('electron');
 
+const { periodMs } = require('./periodicReload');
+
 const TICK_MS = 30000;
 
 class HibernationController {
@@ -31,8 +33,11 @@ class HibernationController {
     if (this.timer) clearInterval(this.timer);
   }
 
+  // True when this link must not be hibernated automatically (idle timer or
+  // tray timer). A link with Periodic reload on is exempt too: it is meant to keep
+  // running, so only the user may hibernate it (manually).
   effectiveKeepAwake(link) {
-    return !!(link.hibernate && link.hibernate.keepAwake);
+    return !!(link.hibernate && link.hibernate.keepAwake) || periodMs(link) > 0;
   }
 
   onWindowHide() {

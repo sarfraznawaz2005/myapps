@@ -346,6 +346,14 @@ html[data-locked="1"] #toast-host { display: none !important; }
 }
 #toolbar button:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
 #toolbar button:disabled { opacity: .35; cursor: default; }
+/* Zoom percentage doubles as the reset button, so it is wider than the 28px icon buttons. */
+#toolbar #tb-zoom-reset {
+  width: auto;
+  min-width: 44px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
 
 /* Positioned inside the toolbar's own band (0 to --toolbar-h), never below it —
    the active link's page is a native view the OS draws on top of everything

@@ -109,7 +109,9 @@ function downloadImageToDisk(webContents, url) {
 // site suddenly shows logged out two windows deep.
 // `shouldAllow(url)` can veto a popup (return false to deny it); omitted,
 // every popup is allowed.
-function wirePopupSessions(webContents, ses, mainWindow, shouldAllow = () => true) {
+// `resolveSession(url)` may return a different session (the one of a saved
+// link that owns that site) or null to keep `ses`.
+function wirePopupSessions(webContents, ses, mainWindow, shouldAllow = () => true, resolveSession = () => null) {
   webContents.setWindowOpenHandler(({ url }) => {
     if (!shouldAllow(url)) return { action: 'deny' };
     return {
@@ -117,14 +119,44 @@ function wirePopupSessions(webContents, ses, mainWindow, shouldAllow = () => tru
       overrideBrowserWindowOptions: {
         autoHideMenuBar: true,
         backgroundColor: '#ffffff',
-        webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false },
+        webPreferences: { session: resolveSession(url) || ses, contextIsolation: true, nodeIntegration: false },
       },
     };
   });
   webContents.on('did-create-window', (childWindow) => {
     attachEditContextMenu(childWindow.webContents, { withPageControls: true, mainWindow });
-    wirePopupSessions(childWindow.webContents, ses, mainWindow, shouldAllow);
+    // Use the session the window really got, so deeper popups keep it.
+    wirePopupSessions(childWindow.webContents, childWindow.webContents.session, mainWindow, shouldAllow, resolveSession);
+
+    // A popup often starts on a redirector (about:blank, tiktok.com/link/...)
+    // and only then lands on the real site. A window's session cannot change
+    // after it exists, so when it heads to a site owned by another saved
+    // link, reopen that URL in a fresh window on that link's session.
+    const wc = childWindow.webContents;
+    const reroute = (event, navUrl) => {
+      const target = resolveSession(navUrl);
+      if (!target || target === wc.session) return;
+      event.preventDefault();
+      openWindowOnSession(target, navUrl, wc.getURL(), mainWindow, shouldAllow, resolveSession);
+      if (!childWindow.isDestroyed()) childWindow.close();
+    };
+    wc.on('will-redirect', (event, navUrl) => reroute(event, navUrl || event.url));
+    wc.on('will-navigate', (event, navUrl) => reroute(event, navUrl || event.url));
   });
+}
+
+function openWindowOnSession(ses, url, referrer, mainWindow, shouldAllow, resolveSession) {
+  const child = new BrowserWindow({
+    width: 1100,
+    height: 800,
+    autoHideMenuBar: true,
+    backgroundColor: '#ffffff',
+    icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
+    webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false },
+  });
+  attachEditContextMenu(child.webContents, { withPageControls: true, mainWindow });
+  wirePopupSessions(child.webContents, ses, mainWindow, shouldAllow, resolveSession);
+  child.loadURL(url, referrer && referrer !== 'about:blank' ? { httpReferrer: referrer } : undefined);
 }
 
 // Opens a link in a brand-new window on the same session (cookies/login)

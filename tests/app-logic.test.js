@@ -10,7 +10,10 @@ const { parseManualLocation } = require('../src/main/geolocation');
 const { getFlattenedLinkOrder } = require('../src/main/shortcuts');
 const { defaultLinkFields, defaultSettings } = require('../src/main/store');
 const { buildLinkRuleConfig } = require('../src/main/ipc');
-const { ViewManager } = require('../src/main/viewManager');
+const { ViewManager, userAgentFor, clientHintsFor } = require('../src/main/viewManager');
+const { PeriodicReloadController, periodMs } = require('../src/main/periodicReload');
+const { HibernationController } = require('../src/main/hibernation');
+const { EventEmitter } = require('node:events');
 
 function makeTracker(unreadPatch = {}) {
   const link = { id: 'L1', ...defaultLinkFields(), name: 'L', url: 'https://l.com' };
@@ -179,5 +182,110 @@ describe('zoom shortcuts (ViewManager.stepZoom)', () => {
     z.step('reset'); assert.equal(z.link.zoom, 1);
     const odd = zoomer(1.2);
     odd.step('out'); assert.equal(odd.link.zoom, 1.1);
+  });
+});
+
+describe('desktop / mobile view', () => {
+  const SESSION_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';
+
+  test('every link starts in desktop view', () => {
+    assert.equal(defaultLinkFields().viewMode, 'desktop');
+  });
+
+  test('desktop uses the link custom user-agent when set, else the normal session one', () => {
+    assert.equal(userAgentFor({ viewMode: 'desktop', userAgent: '  MyCustom/1.0 ' }, SESSION_UA, '152.0.1'), 'MyCustom/1.0');
+    assert.equal(userAgentFor({ viewMode: 'desktop', userAgent: null }, SESSION_UA, '152.0.1'), SESSION_UA);
+    assert.equal(userAgentFor({ userAgent: '' }, SESSION_UA, '152.0.1'), SESSION_UA);
+  });
+
+  test('mobile is an Android Chrome user-agent that matches the engine version, whatever the custom one', () => {
+    const ua = userAgentFor({ viewMode: 'mobile', userAgent: 'MyCustom/1.0' }, SESSION_UA, '152.0.7977.130');
+    assert.match(ua, /Android/);
+    assert.match(ua, /Chrome\/152\.0\.0\.0 Mobile Safari/);
+    assert.ok(!ua.includes('Electron'));
+  });
+
+  test('mobile client hints say Android + mobile, with brands and the real version', () => {
+    const h = clientHintsFor('152.0.7977.130');
+    assert.equal(h.mobile, true);
+    assert.equal(h.platform, 'Android');
+    assert.ok(h.brands.every((b) => !/electron/i.test(b.brand)));
+    assert.equal(h.brands.find((b) => b.brand === 'Google Chrome').version, '152');
+    assert.equal(h.fullVersionList.find((b) => b.brand === 'Chromium').version, '152.0.7977.130');
+  });
+
+  test('setViewMode saves the choice, rejects bad values, and reloads after emulation is applied', async () => {
+    const link = { id: 'v', viewMode: 'desktop' };
+    const calls = [];
+    const view = { webContents: { isDestroyed: () => false, reload: () => calls.push('reload') } };
+    const self = {
+      _link: () => link,
+      store: { updateLink: (_id, patch) => Object.assign(link, patch) },
+      views: new Map([['v', view]]),
+      layout: () => calls.push('layout'),
+      _applyViewMode: async () => { calls.push('apply'); },
+    };
+    const set = (mode) => ViewManager.prototype.setViewMode.call(self, 'v', mode);
+    assert.equal(await set('tablet'), false);
+    assert.equal(await set('desktop'), false); // already desktop: nothing to do
+    assert.equal(await set('mobile'), true);
+    assert.equal(link.viewMode, 'mobile');
+    assert.deepEqual(calls, ['layout', 'apply', 'reload']); // reload only after apply finished
+  });
+});
+
+describe('periodic reload', () => {
+  const MIN = 60000;
+  function setup(link) {
+    const vm = new EventEmitter();
+    const loaded = new Set([link.id]);
+    const reloads = [];
+    vm.isLoaded = (id) => loaded.has(id);
+    vm.reload = (id) => reloads.push(id);
+    const ctrl = new PeriodicReloadController({ store: { getState: () => ({ links: [link] }) }, viewManager: vm });
+    clearInterval(ctrl.timer); // tests drive tick() by hand
+    return { ctrl, vm, loaded, reloads };
+  }
+
+  test('off by default, and junk values count as off', () => {
+    assert.equal(defaultLinkFields().reloadMinutes, 0);
+    for (const bad of [0, -5, NaN, 'abc', null, undefined]) assert.equal(periodMs({ reloadMinutes: bad }), 0);
+    assert.equal(periodMs({ reloadMinutes: 5 }), 5 * MIN);
+    assert.equal(periodMs({ reloadMinutes: 999999 }), 7 * 24 * 60 * MIN); // capped at a week
+  });
+
+  test('reloads a loaded link once its period has passed, then waits a full period again', () => {
+    const { ctrl, vm, reloads } = setup({ id: 'a', enabled: true, reloadMinutes: 5 });
+    const t0 = Date.now();
+    vm.emit('loaded', 'a');
+    ctrl.lastAt.set('a', t0);
+    ctrl.tick(t0 + 4 * MIN);
+    assert.deepEqual(reloads, []);
+    ctrl.tick(t0 + 5 * MIN);
+    assert.deepEqual(reloads, ['a']);
+    ctrl.tick(t0 + 6 * MIN); // a failed load must not be retried on every tick
+    assert.deepEqual(reloads, ['a']);
+    ctrl.tick(t0 + 10 * MIN);
+    assert.deepEqual(reloads, ['a', 'a']);
+  });
+
+  test('a page load restarts the clock; a hibernated link is never reloaded', () => {
+    const { ctrl, vm, loaded, reloads } = setup({ id: 'b', enabled: true, reloadMinutes: 5 });
+    const t0 = Date.now();
+    ctrl.lastAt.set('b', t0 - 10 * MIN);
+    vm.emit('page-loaded', 'b'); // sets lastAt to "now"
+    ctrl.tick(t0 + MIN);
+    assert.deepEqual(reloads, []);
+    loaded.delete('b');
+    vm.emit('hibernated', 'b');
+    ctrl.tick(t0 + 60 * MIN);
+    assert.deepEqual(reloads, []);
+  });
+
+  test('periodic-reload links are exempt from automatic hibernation, others are not', () => {
+    const h = Object.create(HibernationController.prototype);
+    assert.equal(h.effectiveKeepAwake({ reloadMinutes: 10, hibernate: { keepAwake: false } }), true);
+    assert.equal(h.effectiveKeepAwake({ reloadMinutes: 0, hibernate: { keepAwake: false } }), false);
+    assert.equal(h.effectiveKeepAwake({ reloadMinutes: 0, hibernate: { keepAwake: true } }), true);
   });
 });

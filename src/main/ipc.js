@@ -381,6 +381,14 @@ function initIpc(ctx) {
   });
 
   handle(CH.LINK_HIBERNATE, (_event, id) => viewManager.hibernate(id));
+  // Toolbar desktop/mobile toggle.
+  handle(CH.LINK_VIEW_MODE, (_event, id, mode) => viewManager.setViewMode(id, mode));
+  // Toolbar / menu zoom buttons: same Chrome-style steps as Ctrl+= / Ctrl+- / Ctrl+0.
+  handle(CH.LINK_ZOOM, (_event, id, direction) => {
+    if (!['in', 'out', 'reset'].includes(direction)) return false;
+    viewManager.stepZoom(id, direction);
+    return true;
+  });
 
   handle(CH.LINK_RELOAD, (_event, id) => viewManager.reload(id));
 

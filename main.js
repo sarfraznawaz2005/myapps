@@ -10,6 +10,7 @@ const { UnreadTracker } = require('./src/main/unread');
 const { Indicator } = require('./src/main/indicator');
 const { NotificationsController } = require('./src/main/notifications');
 const { HibernationController } = require('./src/main/hibernation');
+const { PeriodicReloadController } = require('./src/main/periodicReload');
 const { TrayController } = require('./src/main/tray');
 const autolaunch = require('./src/main/autolaunch');
 const { attachShortcuts } = require('./src/main/shortcuts');
@@ -118,6 +119,7 @@ if (!gotLock) {
 
     const hibernationController = new HibernationController({ store, viewManager, unreadTracker });
     ctx.hibernationController = hibernationController;
+    const periodicReload = new PeriodicReloadController({ store, viewManager });
 
     const tray = new TrayController({ store, showAppWindow, quitApp, toggleDnd });
     ctx.tray = tray;
@@ -187,6 +189,7 @@ if (!gotLock) {
       viewManager.destroyAll();
       appLock.stopIdleWatch();
       hibernationController.destroy();
+      periodicReload.destroy();
       tray.destroy();
     });
 

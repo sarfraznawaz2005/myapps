@@ -20,6 +20,11 @@ function Run($cmd, $cmdArgs, $step) {
     }
 }
 
+# 0. Tests come first, before anything touches git, tags or the build.
+#    If any test fails, the release stops here and nothing has changed.
+Run "npm" @("test") "Run tests"
+Write-Host "All tests passed." -ForegroundColor Green
+
 # 1. Repo must be clean
 $status = git status --porcelain
 if ($status) {

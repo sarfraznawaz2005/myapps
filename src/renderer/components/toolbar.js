@@ -19,6 +19,10 @@ function render() {
       <span class="lock">${iconHtml('lock')}</span>
       <input id="tb-url" type="text" placeholder="Select a link…" />
     </div>
+    <button id="tb-viewmode" title="Switch to mobile view">${iconHtml('desktop')}</button>
+    <button id="tb-zoom-out" title="Zoom out (Ctrl+-)">${iconHtml('minus')}</button>
+    <button id="tb-zoom-reset" title="Reset zoom to 100% (Ctrl+0)">100%</button>
+    <button id="tb-zoom-in" title="Zoom in (Ctrl++)">${iconHtml('plus')}</button>
     <button id="tb-note" title="Add note">${iconHtml('note')}</button>
     <button id="tb-copy" title="Copy URL">${iconHtml('copy')}</button>
     <button id="tb-external" title="Open in browser">${iconHtml('external')}</button>
@@ -39,6 +43,18 @@ function render() {
     window.myApps.invoke('nav:go', status.loading ? 'stop' : 'reload');
   });
   document.getElementById('tb-home').addEventListener('click', () => window.myApps.invoke('nav:go', 'home'));
+  document.getElementById('tb-viewmode').addEventListener('click', () => {
+    const id = getState().activeLinkId;
+    const link = id ? getLink(id) : null;
+    if (link) window.myApps.invoke('link:view-mode', id, link.viewMode === 'mobile' ? 'desktop' : 'mobile');
+  });
+  const zoomActive = (direction) => {
+    const id = getState().activeLinkId;
+    if (id) window.myApps.invoke('link:zoom', id, direction);
+  };
+  document.getElementById('tb-zoom-out').addEventListener('click', () => zoomActive('out'));
+  document.getElementById('tb-zoom-reset').addEventListener('click', () => zoomActive('reset'));
+  document.getElementById('tb-zoom-in').addEventListener('click', () => zoomActive('in'));
   document.getElementById('tb-note').addEventListener('click', () => openNoteDialog(currentUrl()));
   document.getElementById('tb-copy').addEventListener('click', () => window.myApps.invoke('nav:copy-url'));
   document.getElementById('tb-external').addEventListener('click', () => window.myApps.invoke('nav:open-external'));
@@ -86,9 +102,9 @@ function openOverflowMenu(anchor) {
     border:1px solid var(--border);border-radius:8px;padding:4px;min-width:180px;z-index:120;
     box-shadow:0 12px 32px rgba(0,0,0,.4);`;
   const items = [
-    ['Zoom in', () => window.myApps.invoke('link:update', id, { zoom: Math.min(3, (link.zoom || 1) + 0.1) })],
-    ['Zoom out', () => window.myApps.invoke('link:update', id, { zoom: Math.max(0.5, (link.zoom || 1) - 0.1) })],
-    ['Reset zoom', () => window.myApps.invoke('link:update', id, { zoom: 1 })],
+    ['Zoom in', () => window.myApps.invoke('link:zoom', id, 'in')],
+    ['Zoom out', () => window.myApps.invoke('link:zoom', id, 'out')],
+    ['Reset zoom', () => window.myApps.invoke('link:zoom', id, 'reset')],
     ['Hibernate now', () => window.myApps.invoke('link:hibernate', id)],
     ['Clear login data…', async () => {
       if (confirm(`Clear login data for "${link.name}"? This signs it out.`)) {
@@ -143,6 +159,19 @@ export function update() {
   document.getElementById('tb-forward').disabled = !status.canGoForward;
   document.getElementById('tb-home').disabled = !link;
   document.getElementById('tb-copy').disabled = !link;
+  const viewBtn = document.getElementById('tb-viewmode');
+  const mobile = !!link && link.viewMode === 'mobile';
+  viewBtn.disabled = !link;
+  viewBtn.innerHTML = iconHtml(mobile ? 'mobile' : 'desktop');
+  viewBtn.title = mobile ? 'Mobile view (click for desktop view)' : 'Desktop view (click for mobile view)';
+  viewBtn.style.color = mobile ? 'var(--accent)' : '';
+  const zoom = link ? (link.zoom || 1) : 1;
+  const zoomPct = Math.round(zoom * 100);
+  const zoomReset = document.getElementById('tb-zoom-reset');
+  zoomReset.textContent = `${zoomPct}%`;
+  zoomReset.disabled = !link || zoomPct === 100;
+  document.getElementById('tb-zoom-out').disabled = !link || zoomPct <= 50;
+  document.getElementById('tb-zoom-in').disabled = !link || zoomPct >= 300;
   const noteBtn = document.getElementById('tb-note');
   const url = currentUrl();
   const note = url ? state.notes[url] : null;

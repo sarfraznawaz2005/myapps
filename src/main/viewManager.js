@@ -15,11 +15,61 @@ const LINK_PRELOAD = path.join(__dirname, '..', '..', 'preload', 'link-preload.j
 // Chrome's zoom presets, limited to the 50%-300% range the Edit dialog allows.
 const ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 
+// Mobile view: a phone-sized column in the middle of the content area. Sites see
+// an Android Chrome user-agent, a ~412px-wide touch screen and a mobile viewport,
+// so both server-side (user-agent) and CSS (width) mobile layouts kick in.
+const MOBILE_VIEW_WIDTH = 412;
+
+// Pure, so it can be tested. Desktop honours the link's own custom user-agent
+// (Edit dialog); with none, it is the session's normal (Electron-free) one.
+function userAgentFor(link, sessionUserAgent, chromeVersion) {
+  if (link && link.viewMode === 'mobile') {
+    const major = String(chromeVersion || '').split('.')[0] || '120';
+    return `Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Mobile Safari/537.36`;
+  }
+  const custom = link && link.userAgent && link.userAgent.trim();
+  return custom || sessionUserAgent;
+}
+
+// Pure. What navigator.userAgentData and the Sec-CH-UA-* request headers report
+// in mobile view (sites that ignore the user-agent text read these instead).
+function clientHintsFor(chromeVersion) {
+  const full = String(chromeVersion || '120.0.0.0');
+  const major = full.split('.')[0] || '120';
+  const list = (v, grease) => [
+    { brand: 'Chromium', version: v },
+    { brand: 'Google Chrome', version: v },
+    { brand: 'Not.A/Brand', version: grease },
+  ];
+  return {
+    brands: list(major, '99'),
+    fullVersionList: list(full, '99.0.0.0'),
+    platform: 'Android',
+    platformVersion: '14.0.0',
+    architecture: '',
+    model: 'Pixel 8',
+    mobile: true,
+    bitness: '',
+    wow64: false,
+  };
+}
+
+const normHost = (h) => String(h || '').toLowerCase().replace(/^www\./, '');
+function hostOf(u) {
+  try { return normHost(new URL(u).hostname); } catch (_e) { return ''; }
+}
+function sameSite(a, b) {
+  const x = hostOf(a);
+  const y = hostOf(b);
+  return !!x && !!y && (x === y || x.endsWith(`.${y}`) || y.endsWith(`.${x}`));
+}
+
 class ViewManager extends EventEmitter {
   constructor({ mainWindow, store }) {
     super();
     this.mainWindow = mainWindow;
     this.store = store;
+    this._modeJobs = new Map(); // linkId -> last queued view-mode job (see _applyViewMode)
     this.views = new Map(); // linkId -> WebContentsView
     this.activeId = null;
     this.modalOpen = false;
@@ -30,6 +80,16 @@ class ViewManager extends EventEmitter {
 
   _link(id) {
     return this.store.getState().links.find((l) => l.id === id) || null;
+  }
+
+  // Session of the saved link that owns `url`'s site, so a popup to a site
+  // you already added (and logged in to) opens logged in. Only when exactly
+  // one link matches: with two (e.g. two WhatsApp accounts) it is ambiguous,
+  // so return null and the caller keeps the opener's session.
+  _sessionForUrl(url) {
+    const matches = this.store.getState().links.filter((l) => sameSite(url, l.url));
+    if (matches.length !== 1) return null;
+    return getLinkSession(matches[0], this.store);
   }
 
   isLoaded(id) {
@@ -122,6 +182,7 @@ class ViewManager extends EventEmitter {
     let firstLoadRetried = false;
     wc.on('did-finish-load', () => {
       hasLoaded = true;
+      this.emit('page-loaded', id);
       // Fresh lookup, not the `link` captured when this view was created: that copy
       // is stale once the zoom changes, and every page load would snap back to it.
       try { wc.setZoomFactor((this._link(id) || link).zoom || 1); } catch (_e) { /* ignore */ }
@@ -175,7 +236,11 @@ class ViewManager extends EventEmitter {
       if (link.navigation && link.navigation.openExternal) shell.openExternal(url);
       return false;
     };
-    wirePopupSessions(wc, ses, this.mainWindow, shouldAllowPopup);
+    wirePopupSessions(wc, ses, this.mainWindow, shouldAllowPopup, (url) => {
+      // Same-site popups (OAuth etc.) must keep this link's own session.
+      if (sameSite(url, link.url)) return null;
+      return this._sessionForUrl(url);
+    });
 
     // Same stuck-input class as the notification-toast case above: an OAuth
     // popup closing and returning focus to the main window doesn't always
@@ -192,7 +257,12 @@ class ViewManager extends EventEmitter {
     // autoplays audio/video (TikTok, YouTube) never gets heard before the
     // user has actually switched to that tab.
     wc.setAudioMuted(true);
-    wc.loadURL(link.url);
+    // Before the first load, so the very first request already says "mobile".
+    if (link.viewMode === 'mobile') {
+      this._applyViewMode(id).then(() => { if (!wc.isDestroyed()) wc.loadURL(link.url); });
+    } else {
+      wc.loadURL(link.url);
+    }
     this.layout();
     this.emit('loaded', id);
     return view;
@@ -345,9 +415,113 @@ class ViewManager extends EventEmitter {
     const sidebarWidth = ui.sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : ui.sidebarWidth;
     const width = Math.max(0, cb.width - sidebarWidth);
     const height = Math.max(0, cb.height - TOOLBAR_HEIGHT);
-    for (const view of this.views.values()) {
-      view.setBounds({ x: sidebarWidth, y: TOOLBAR_HEIGHT, width, height });
+    for (const [id, view] of this.views) {
+      const link = this._link(id);
+      if (link && link.viewMode === 'mobile') {
+        const w = Math.min(width, MOBILE_VIEW_WIDTH);
+        view.setBounds({ x: sidebarWidth + Math.floor((width - w) / 2), y: TOOLBAR_HEIGHT, width: w, height });
+        this._syncMobileSize(id);
+      } else {
+        view.setBounds({ x: sidebarWidth, y: TOOLBAR_HEIGHT, width, height });
+      }
     }
+  }
+
+  // Makes a loaded view match its link's viewMode. Mobile uses Chrome's DevTools
+  // protocol (the same thing as DevTools device mode): user-agent, client hints
+  // (Sec-CH-UA-Mobile, navigator.userAgentData), a touch screen and a mobile
+  // viewport, all in one. Calls for one view run one after another. Never rejects.
+  _applyViewMode(id) {
+    const prev = this._modeJobs.get(id) || Promise.resolve();
+    const job = prev.then(() => this._applyViewModeNow(id)).catch(() => {});
+    this._modeJobs.set(id, job);
+    return job;
+  }
+
+  async _applyViewModeNow(id) {
+    const link = this._link(id);
+    const view = this.views.get(id);
+    if (!link || !view || view.webContents.isDestroyed()) return;
+    const wc = view.webContents;
+    const ua = userAgentFor(link, wc.session.getUserAgent(), process.versions.chrome);
+    try { if (wc.getUserAgent() !== ua) wc.setUserAgent(ua); } catch (_e) { /* ignore */ }
+    if (link.viewMode !== 'mobile') {
+      // Detaching clears every override the protocol session set.
+      try { wc.disableDeviceEmulation(); } catch (_e) { /* ignore */ }
+      try { if (wc.debugger.isAttached()) wc.debugger.detach(); } catch (_e) { /* ignore */ }
+      return;
+    }
+    try {
+      if (!wc.debugger.isAttached()) wc.debugger.attach('1.3');
+      await wc.debugger.sendCommand('Emulation.setUserAgentOverride', {
+        userAgent: ua,
+        platform: 'Linux armv81',
+        userAgentMetadata: clientHintsFor(process.versions.chrome),
+      });
+      await wc.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+      await this._sendMobileMetrics(view);
+    } catch (_e) {
+      // Protocol unavailable (e.g. another client holds it): still give the page
+      // a phone-sized touch screen the older way. The user-agent text is set above.
+      try {
+        const size = this._mobileSize(view);
+        wc.enableDeviceEmulation({
+          screenPosition: 'mobile',
+          screenSize: size,
+          viewPosition: { x: 0, y: 0 },
+          deviceScaleFactor: 0,
+          viewSize: size,
+          scale: 1,
+        });
+      } catch (_e2) { /* best-effort; the page still loads */ }
+    }
+  }
+
+  _mobileSize(view) {
+    const { width, height } = view.getBounds();
+    return { width: width || MOBILE_VIEW_WIDTH, height: height || 800 };
+  }
+
+  _sendMobileMetrics(view) {
+    const { width, height } = this._mobileSize(view);
+    return view.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+      width,
+      height,
+      deviceScaleFactor: 0,
+      mobile: true,
+      screenWidth: width,
+      screenHeight: height,
+    });
+  }
+
+  // Window resized: keep the emulated screen the same size as the view. If the
+  // protocol session is gone, set everything up again.
+  _syncMobileSize(id) {
+    const view = this.views.get(id);
+    if (!view || view.webContents.isDestroyed()) return;
+    try {
+      if (view.webContents.debugger.isAttached()) {
+        this._sendMobileMetrics(view).catch(() => {});
+        return;
+      }
+    } catch (_e) { /* fall through */ }
+    this._applyViewMode(id);
+  }
+
+  // Toolbar toggle. Saved on the link, so it survives hibernation and restarts.
+  // A user-agent only applies to new requests, so a loaded page is reloaded.
+  async setViewMode(id, mode) {
+    if (mode !== 'desktop' && mode !== 'mobile') return false;
+    const link = this._link(id);
+    if (!link || (link.viewMode || 'desktop') === mode) return false;
+    this.store.updateLink(id, { viewMode: mode });
+    const view = this.views.get(id);
+    if (view && !view.webContents.isDestroyed()) {
+      this.layout();
+      await this._applyViewMode(id);
+      if (!view.webContents.isDestroyed()) view.webContents.reload();
+    }
+    return true;
   }
 
   hibernate(id) {
@@ -359,6 +533,7 @@ class ViewManager extends EventEmitter {
       if (!view.webContents.isDestroyed()) view.webContents.close();
     } catch (_e) { /* ignore */ }
     this.views.delete(id);
+    this._modeJobs.delete(id);
     this.emit('hibernated', id);
     return true;
   }
@@ -474,4 +649,4 @@ class ViewManager extends EventEmitter {
   }
 }
 
-module.exports = { ViewManager };
+module.exports = { ViewManager, userAgentFor, clientHintsFor };

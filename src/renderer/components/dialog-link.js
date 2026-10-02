@@ -25,6 +25,7 @@ function defaultDraft() {
     url: '',
     groupId: null,
     zoom: 1,
+    reloadMinutes: 0,
     icon: { mode: 'auto', path: null, url: null, fallbackLetter: null, fallbackColor: '#3b82f6' },
     userAgent: null,
     muted: false,
@@ -50,6 +51,7 @@ function draftFromLink(link) {
     url: link.url,
     groupId: link.groupId,
     zoom: link.zoom,
+    reloadMinutes: link.reloadMinutes || 0,
     icon: link.icon,
     userAgent: link.userAgent,
     muted: link.muted,
@@ -97,6 +99,11 @@ function generalTabHtml() {
           <input type="color" id="lk-fallback-color" value="${d.icon.fallbackColor || '#3b82f6'}" style="width:40px;padding:2px;" />
         </div>
       </div>
+    </div>
+    <div class="field">
+      <label>Periodic reload (minutes, 0 = off)</label>
+      <input type="number" id="lk-reload" min="0" max="10080" step="1" value="${d.reloadMinutes || 0}" />
+      <div class="hint">Reloads this link every this many minutes, even while you are using it. A link with periodic reload is never hibernated automatically; you can still hibernate it yourself.</div>
     </div>
     <div class="checkbox-row"><input type="checkbox" id="lk-muted" ${d.muted ? 'checked' : ''} /><label for="lk-muted">Mute (never notify)</label></div>
     <div class="checkbox-row"><input type="checkbox" id="lk-keep-playing" ${d.keepPlaying ? 'checked' : ''} /><label for="lk-keep-playing">Keep playing audio/video when switching tabs or minimized to tray</label></div>
@@ -270,6 +277,7 @@ function wireGeneralTab() {
   bind('lk-name', 'input', (el) => el.value, (v) => { draft.name = v; });
   bind('lk-url', 'input', (el) => el.value, (v) => { draft.url = v; });
   bind('lk-group', 'change', (el) => el.value || null, (v) => { draft.groupId = v; });
+  bind('lk-reload', 'input', (el) => Math.min(10080, Math.max(0, parseInt(el.value, 10) || 0)), (v) => { draft.reloadMinutes = v; });
   bind('lk-zoom', 'input', (el) => parseInt(el.value, 10) || 100, (v) => { draft.zoom = v / 100; });
   bind('lk-fallback-letter', 'input', (el) => el.value.trim() || null, (v) => { draft.icon.fallbackLetter = v; });
   bind('lk-fallback-color', 'input', (el) => el.value, (v) => { draft.icon.fallbackColor = v; });

@@ -408,3 +408,33 @@ describe('WhatsApp chat with a number', () => {
     assert.equal(whatsappChatUrl('15551234567&text=hi#x'), 'https://web.whatsapp.com/send?phone=15551234567');
   });
 });
+
+describe('ad blocker page scripts (scriptlets)', () => {
+  const { guardCosmeticScripts } = require('../src/main/adblock');
+
+  function run() {
+    const calls = { js: [], css: [] };
+    const sender = {
+      setMaxListeners: () => {}, getMaxListeners: () => 10,
+      executeJavaScript: (code) => { calls.js.push(code); return Promise.resolve(); },
+      insertCSS: (css) => { calls.css.push(css); return Promise.resolve(); },
+    };
+    // Stand-in for the library handler: it hides ad boxes with CSS and runs scriptlets.
+    const blocker = {
+      onInjectCosmeticFilters: (event) => {
+        event.sender.insertCSS('.ad{display:none}');
+        event.sender.executeJavaScript('class JSONPath {}');
+        event.sender.executeJavaScript('class JSONPath {}');
+        return Promise.resolve();
+      },
+    };
+    guardCosmeticScripts(blocker);
+    return blocker.onInjectCosmeticFilters({ sender }, 'https://www.facebook.com/', undefined).then(() => calls);
+  }
+
+  test('page scripts are not run in pages, but ad boxes are still hidden with CSS', async () => {
+    const calls = await run();
+    assert.equal(calls.js.length, 0);
+    assert.deepEqual(calls.css, ['.ad{display:none}']);
+  });
+});

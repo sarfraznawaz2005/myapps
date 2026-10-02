@@ -12,6 +12,15 @@ let loading = null;
 // Sessions whose link wants blocking, waiting for the lists to finish loading.
 const pending = new Map();
 
+// The blocker also ships "scriptlets": small scripts it runs INSIDE pages to
+// rewrite their data and code (uBlock-style json-prune, set-constant, ...).
+// They are off. On facebook.com the lists inject 48 of them and 8 declare the
+// same top-level `JSONPath`, so seven fail with "Identifier 'JSONPath' has
+// already been declared"; the rest rewrite Facebook's own data, which fits
+// the feed's intermittent "Something went wrong". Network blocking and hiding
+// of ad boxes (CSS) still work without them. Set to true to run them again.
+const RUN_PAGE_SCRIPTLETS = false;
+
 // The library runs page-cleaning scripts with `sender.executeJavaScript()` and
 // never handles the returned promise. When a script throws on some page, Node
 // prints an UnhandledPromiseRejectionWarning each time. Wrap the call so a
@@ -26,6 +35,7 @@ function guardCosmeticScripts(b) {
     const safeSender = new Proxy(sender, {
       get(target, key) {
         if (key === 'executeJavaScript') {
+          if (!RUN_PAGE_SCRIPTLETS) return () => Promise.resolve();
           return (...args) => Promise.resolve(target.executeJavaScript(...args)).catch(() => {});
         }
         const value = target[key];
@@ -43,6 +53,36 @@ function guardCosmeticScripts(b) {
   };
 }
 
+// Filters the blocker must never apply: add one when a blocked request breaks
+// a site (for example Facebook's "Something went wrong"). Use Adblock Plus
+// syntax; "@@" marks an exception, e.g. '@@||example.com/api/important^'.
+// To find the filter, start the app with MYAPPS_ADBLOCK_LOG=1 (see below).
+const EXCEPTIONS = [];
+
+function addExceptions(list) {
+  if (!blocker || !list.length) return;
+  try {
+    blocker.updateFromDiff({ added: list });
+  } catch (e) {
+    console.warn('[adblock] could not add exceptions:', e && e.message);
+  }
+}
+
+// MYAPPS_ADBLOCK_LOG=1 prints every blocked request with the filter that
+// matched it, so a broken page can be traced to one rule.
+function logBlocked(b) {
+  const clip = (text) => (String(text).length > 220 ? `${String(text).slice(0, 220)}...` : String(text));
+  b.on('request-blocked', (request, result) => {
+    const filter = result && result.filter ? result.filter.toString() : '(no filter text)';
+    console.log(`[adblock] BLOCKED ${request.type} ${clip(request.url)}
+          filter: ${filter}
+          page: ${clip(request.sourceUrl || '')}`);
+  });
+  b.on('request-redirected', (request) => {
+    console.log(`[adblock] REDIRECTED ${request.type} ${clip(request.url)}`);
+  });
+}
+
 function load() {
   if (loading) return loading;
   loading = (async () => {
@@ -55,6 +95,8 @@ function load() {
         write: fs.promises.writeFile,
       });
       guardCosmeticScripts(blocker);
+      addExceptions(EXCEPTIONS);
+      if (process.env.MYAPPS_ADBLOCK_LOG) logBlocked(blocker);
       for (const [ses, enabled] of pending) apply(ses, enabled);
       pending.clear();
     } catch (e) {
@@ -112,4 +154,4 @@ function whenReady() {
   return load();
 }
 
-module.exports = { setEnabled, whenReady };
+module.exports = { setEnabled, whenReady, addExceptions, guardCosmeticScripts };

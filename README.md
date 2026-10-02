@@ -167,6 +167,15 @@ per link session in `src/main/adblock.js`.
   show ads. If the download fails, links still work, just unblocked.
 - Changing the setting takes effect the next time the link loads.
 - Most YouTube video ads are not blocked.
+- The blocker's in-page "scriptlets" (scripts that rewrite a site's own code)
+  are turned off (`RUN_PAGE_SCRIPTLETS` in `src/main/adblock.js`): on Facebook
+  they clashed with each other and could trigger "Something went wrong".
+- A site breaks (e.g. Facebook shows "Something went wrong")? Turn blocking
+  off for that link in Edit → Advanced to confirm. To find the one rule at
+  fault, start the app with `MYAPPS_ADBLOCK_LOG=1` (PowerShell:
+  `$env:MYAPPS_ADBLOCK_LOG=1; npm start`): every blocked request is printed
+  with the filter that matched. Then add an exception such as
+  `'@@||example.com/path^'` to `EXCEPTIONS` in `src/main/adblock.js`.
 - Disposable check: `scripts/adblock-smoke.js` (run it with the Electron
   binary in `node_modules/electron/dist`; needs internet).
 

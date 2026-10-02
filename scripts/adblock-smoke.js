@@ -65,6 +65,10 @@ app.whenReady().then(async () => {
     report('session added after one was switched off still blocks', on3.some((u) => u.includes('doubleclick.net')));
     report('no "could not update session" warnings', warnings.length === 0);
     report('blocking OFF does not block the ad URL', !adBlockedOff);
+    // exceptions: an "@@" filter must let the ad URL through even with blocking ON
+    adblock.addExceptions(['@@||googleads.g.doubleclick.net^']);
+    const allowed = await runCase('exempt', true, port);
+    report('an exception filter lets that URL through while blocking is ON', !allowed.some((u) => u.includes('doubleclick.net')));
   } catch (e) {
     console.log('FAIL  error:', e && e.message);
     ok = false;

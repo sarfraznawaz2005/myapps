@@ -2,6 +2,7 @@ import { getState, getLink } from '../state.js';
 import { icons } from '../icons.js';
 import { openLinkDialog } from './dialog-link.js';
 import { openNoteDialog } from './dialog-note.js';
+import { openKeywordsDialog } from './dialog-keywords.js';
 
 const toolbarEl = document.getElementById('toolbar');
 let urlEditing = false;
@@ -24,6 +25,7 @@ function render() {
     <button id="tb-zoom-out" title="Zoom out (Ctrl+-)">${iconHtml('minus')}</button>
     <button id="tb-zoom-reset" title="Reset zoom to 100% (Ctrl+0)">100%</button>
     <button id="tb-zoom-in" title="Zoom in (Ctrl++)">${iconHtml('plus')}</button>
+    <button id="tb-highlight" title="Highlight keywords">${iconHtml('highlighter')}</button>
     <button id="tb-note" title="Add note">${iconHtml('note')}</button>
     <button id="tb-copy" title="Copy URL">${iconHtml('copy')}</button>
     <button id="tb-external" title="Open in browser">${iconHtml('external')}</button>
@@ -61,6 +63,7 @@ function render() {
   document.getElementById('tb-zoom-out').addEventListener('click', () => zoomActive('out'));
   document.getElementById('tb-zoom-reset').addEventListener('click', () => zoomActive('reset'));
   document.getElementById('tb-zoom-in').addEventListener('click', () => zoomActive('in'));
+  document.getElementById('tb-highlight').addEventListener('click', () => openKeywordsDialog());
   document.getElementById('tb-note').addEventListener('click', () => openNoteDialog(currentUrl()));
   document.getElementById('tb-copy').addEventListener('click', () => window.myApps.invoke('nav:copy-url'));
   document.getElementById('tb-external').addEventListener('click', () => window.myApps.invoke('nav:open-external'));
@@ -184,6 +187,10 @@ export function update() {
   zoomReset.disabled = !link || zoomPct === 100;
   document.getElementById('tb-zoom-out').disabled = !link || zoomPct <= 50;
   document.getElementById('tb-zoom-in').disabled = !link || zoomPct >= 300;
+  const keywords = Array.isArray(state.settings.highlightKeywords) ? state.settings.highlightKeywords : [];
+  const hlBtn = document.getElementById('tb-highlight');
+  hlBtn.title = keywords.length ? `Highlighting ${keywords.length} keyword${keywords.length === 1 ? '' : 's'} (click to edit)` : 'Highlight keywords';
+  hlBtn.style.color = keywords.length ? 'var(--accent)' : '';
   const noteBtn = document.getElementById('tb-note');
   const url = currentUrl();
   const note = url ? state.notes[url] : null;

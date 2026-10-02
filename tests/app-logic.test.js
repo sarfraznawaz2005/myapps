@@ -9,7 +9,7 @@ const { normalizeUrl } = require('../src/main/navigation');
 const { parseManualLocation } = require('../src/main/geolocation');
 const { getFlattenedLinkOrder } = require('../src/main/shortcuts');
 const { defaultLinkFields, defaultSettings } = require('../src/main/store');
-const { buildLinkRuleConfig } = require('../src/main/ipc');
+const { buildLinkRuleConfig, cleanKeywords } = require('../src/main/ipc');
 const { ViewManager, userAgentFor, clientHintsFor } = require('../src/main/viewManager');
 const { PeriodicReloadController, periodMs } = require('../src/main/periodicReload');
 const { HibernationController } = require('../src/main/hibernation');
@@ -342,5 +342,24 @@ describe('dark mode toggle (ViewManager.setDarkMode)', () => {
   test('setting the same value again does nothing', () => {
     const h = darkHarness(true);
     assert.equal(h.set(true), false);
+  });
+});
+
+describe('keyword highlighter settings', () => {
+  test('default is an empty list, so highlighting is skipped', () => {
+    assert.deepEqual(defaultSettings().highlightKeywords, []);
+    assert.deepEqual(buildLinkRuleConfig(defaultLinkFields(), defaultSettings(), []).highlightKeywords, []);
+  });
+
+  test('cleanKeywords trims, drops blanks and duplicates (any case), caps length', () => {
+    assert.deepEqual(cleanKeywords(['  urgent ', '', 'URGENT', 'invoice', 5, null]), ['urgent', 'invoice']);
+    assert.deepEqual(cleanKeywords(['ab', 'abc', ' a ']), ['abc']); // minimum 3 characters
+    assert.equal(cleanKeywords(['x'.repeat(500)])[0].length, 100);
+    assert.deepEqual(cleanKeywords('nope'), []);
+  });
+
+  test('keywords reach every link config', () => {
+    const settings = { ...defaultSettings(), highlightKeywords: ['alpha', 'beta'] };
+    assert.deepEqual(buildLinkRuleConfig(defaultLinkFields(), settings, []).highlightKeywords, ['alpha', 'beta']);
   });
 });

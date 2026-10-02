@@ -315,6 +315,87 @@ function setupPasswordManager(initiallyOn, initiallyReveal) {
   document.addEventListener('DOMContentLoaded', () => setTimeout(checkPending, 800));
 }
 
+// Global keyword highlighter (toolbar highlighter button). Uses the CSS Custom
+// Highlight API: matches are painted from Ranges, so the page's DOM is never
+// changed (wrapping text in <mark> breaks React/Vue sites that later update
+// those text nodes). Top frame only. With no keywords it does nothing at all:
+// no observer, no scan.
+function setupKeywordHighlighter(initial) {
+  if (window !== window.top) return;
+  if (typeof CSS === 'undefined' || !CSS.highlights || typeof Highlight === 'undefined') return;
+  const NAME = 'myapps-keywords';
+  const MAX_RANGES = 5000;
+  const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'INPUT', 'SELECT', 'OPTION', 'IFRAME']);
+  let regex = null;
+  let observer = null;
+  let timer = null;
+  let styled = false;
+
+  function scan() {
+    timer = null;
+    CSS.highlights.delete(NAME);
+    if (!regex || !document.body) return;
+    const ranges = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || SKIP_TAGS.has(parent.tagName) || parent.isContentEditable) return NodeFilter.FILTER_REJECT;
+        return node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      },
+    });
+    let node;
+    while ((node = walker.nextNode()) && ranges.length < MAX_RANGES) {
+      const text = node.nodeValue;
+      regex.lastIndex = 0;
+      let m;
+      while ((m = regex.exec(text)) && ranges.length < MAX_RANGES) {
+        const range = new Range();
+        range.setStart(node, m.index);
+        range.setEnd(node, m.index + m[0].length);
+        ranges.push(range);
+      }
+    }
+    if (ranges.length) CSS.highlights.set(NAME, new Highlight(...ranges));
+  }
+
+  // Throttled, not debounced: a page that mutates constantly still gets scanned.
+  function schedule() {
+    if (!timer) timer = setTimeout(scan, 400);
+  }
+
+  function stop() {
+    if (observer) { observer.disconnect(); observer = null; }
+    if (timer) { clearTimeout(timer); timer = null; }
+    CSS.highlights.delete(NAME);
+  }
+
+  function start() {
+    if (!document.body) { document.addEventListener('DOMContentLoaded', start, { once: true }); return; }
+    if (!regex) return;
+    if (!styled) {
+      styled = true;
+      // webFrame.insertCSS is not blocked by a page's CSP, unlike an inline <style>.
+      webFrame.insertCSS(`::highlight(${NAME}) { background-color: #ffe14d; color: #000; }`);
+    }
+    if (!observer) {
+      observer = new MutationObserver(schedule);
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    }
+    scan();
+  }
+
+  function apply(list) {
+    const words = (Array.isArray(list) ? list : []).filter((w) => typeof w === 'string' && w);
+    if (!words.length) { regex = null; stop(); return; }
+    const parts = words.slice().sort((a, b) => b.length - a.length).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    regex = new RegExp(parts.join('|'), 'gi');
+    start();
+  }
+
+  ipcRenderer.on('link:config', (_e, cfg) => apply(cfg && cfg.highlightKeywords));
+  apply(initial);
+}
+
 if (linkId) {
   // One synchronous round-trip for this link's current config + the
   // injected-script source text (main reads inject-main-world.js from disk
@@ -337,6 +418,7 @@ if (linkId) {
     onMediaResume: (cb) => ipcRenderer.on('link:media-resume', () => cb()),
   });
 
+  setupKeywordHighlighter(boot.config && boot.config.highlightKeywords);
   setupPasswordManager(!!(boot.config && boot.config.passwordManager), !!(boot.config && boot.config.revealPassword));
 
   // A cross-origin iframe (ad, tracker, embed) is not the site itself: it never

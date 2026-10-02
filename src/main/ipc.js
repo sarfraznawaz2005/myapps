@@ -21,6 +21,23 @@ const INJECTED_SOURCE = fs.readFileSync(
   'utf8'
 );
 
+// Keywords are typed by the user: keep unique strings of 3 to 100 characters
+// (shorter ones would match inside almost every word).
+const MIN_KEYWORD_LENGTH = 3;
+function cleanKeywords(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of list) {
+    const word = typeof raw === 'string' ? raw.trim().slice(0, 100) : '';
+    if (word.length < MIN_KEYWORD_LENGTH || seen.has(word.toLowerCase())) continue;
+    seen.add(word.toLowerCase());
+    out.push(word);
+    if (out.length >= 100) break;
+  }
+  return out;
+}
+
 function buildLinkRuleConfig(link, settings, userscripts) {
   return {
     expert: {
@@ -28,6 +45,7 @@ function buildLinkRuleConfig(link, settings, userscripts) {
       enabled: !!(link.unread.enabled && link.unread.expert.enabled),
     },
     scrollArrows: !!(settings && settings.scrollArrows),
+    highlightKeywords: cleanKeywords(settings && settings.highlightKeywords),
     passwordManager: !!(settings && settings.passwordManager),
     revealPassword: !!(settings && settings.revealPassword),
     // Sent as raw (matches + code), one list for every link — the page
@@ -213,7 +231,7 @@ function initIpc(ctx) {
     const link = store.getState().links.find((l) => l.id === linkId);
     const { settings, userscripts } = store.getState();
     event.returnValue = {
-      config: link ? buildLinkRuleConfig(link, settings, userscripts) : { expert: { enabled: false }, scrollArrows: false, userscripts: [] },
+      config: link ? buildLinkRuleConfig(link, settings, userscripts) : { expert: { enabled: false }, scrollArrows: false, highlightKeywords: cleanKeywords(settings.highlightKeywords), userscripts: [] },
       source: INJECTED_SOURCE,
     };
   });
@@ -450,6 +468,7 @@ function initIpc(ctx) {
   handle(CH.GROUP_REORDER, (_event, orderedIds) => store.reorderGroups(orderedIds));
 
   handle(CH.SETTINGS_UPDATE, (_event, patch) => {
+    if (Object.prototype.hasOwnProperty.call(patch, 'highlightKeywords')) patch = { ...patch, highlightKeywords: cleanKeywords(patch.highlightKeywords) };
     const settings = store.updateSettings(patch);
     if (Object.prototype.hasOwnProperty.call(patch, 'startWithOS')) autolaunch.syncAutoLaunch(store);
     if (Object.prototype.hasOwnProperty.call(patch, 'showTrayIcon')) {
@@ -457,7 +476,7 @@ function initIpc(ctx) {
     }
     tray.refreshMenu();
     if (Object.prototype.hasOwnProperty.call(patch, 'dnd')) recomputeAggregate(ctx);
-    if (Object.prototype.hasOwnProperty.call(patch, 'scrollArrows') || Object.prototype.hasOwnProperty.call(patch, 'passwordManager') || Object.prototype.hasOwnProperty.call(patch, 'revealPassword')) broadcastLinkConfig(ctx);
+    if (Object.prototype.hasOwnProperty.call(patch, 'scrollArrows') || Object.prototype.hasOwnProperty.call(patch, 'highlightKeywords') || Object.prototype.hasOwnProperty.call(patch, 'passwordManager') || Object.prototype.hasOwnProperty.call(patch, 'revealPassword')) broadcastLinkConfig(ctx);
     if (Object.prototype.hasOwnProperty.call(patch, 'dnsProvider') || Object.prototype.hasOwnProperty.call(patch, 'dnsCustomServer')) {
       applyDnsSettings(settings);
     }
@@ -609,4 +628,4 @@ function initIpc(ctx) {
   });
 }
 
-module.exports = { initIpc, buildLinkRuleConfig, sendToShell, recomputeAggregate };
+module.exports = { initIpc, buildLinkRuleConfig, cleanKeywords, sendToShell, recomputeAggregate };

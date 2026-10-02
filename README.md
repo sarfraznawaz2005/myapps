@@ -17,6 +17,7 @@ No pre-made service templates. Every link is a URL you type in yourself.
 - **Scroll arrows** — optional floating ▲/▼ buttons on every site (Settings → Appearance, off by default).
 - **Ad & tracker blocking** — on by default for every link (Ghostery adblocker); turn it off per link in Edit → Advanced.
 - **Dark mode** — moon/sun button in the toolbar forces a dark look on the current link; remembered per link across restarts.
+- **Keyword highlighter** — highlighter button in the toolbar; one global list of words, highlighted automatically on every page (including pages that change after load). Each keyword needs at least 3 characters. Empty list = off.
 - **Userscripts** — your own JavaScript, run on pages matching a URL pattern.
 - **Startup commands** — run any shell command in the background when the app starts (e.g. to launch a locally-hosted service).
 - **Settings export/import** — one JSON file for links, groups, settings, userscripts, and commands.

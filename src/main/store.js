@@ -25,6 +25,7 @@ function defaultSettings() {
     theme: 'dark', // dark | light
     accent: '#3b82f6',
     scrollArrows: false,
+    highlightKeywords: [], // global: words highlighted on every page (toolbar highlighter)
     defaultHibernate: 'manual', // never | idle | manual
     hibernateOnTrayMinutes: 0, // 0 = disabled
     openExternalLinksInBrowser: true,

@@ -2,6 +2,7 @@
 
 const { session, app } = require('electron');
 const permissionPrompt = require('./permissionPrompt');
+const adblock = require('./adblock');
 
 const preparedPartitions = new Set();
 
@@ -87,6 +88,9 @@ function getLinkSession(link, store) {
   } else if (link.userAgent && link.userAgent.trim()) {
     try { ses.setUserAgent(link.userAgent.trim()); } catch (_e) { /* ignore */ }
   }
+  // Re-applied on every call so toggling "Block ads" in the Edit dialog takes
+  // effect the next time the link loads, without a restart.
+  adblock.setEnabled(ses, link.navigation.blockAds !== false);
   return ses;
 }
 

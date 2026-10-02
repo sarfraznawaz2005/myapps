@@ -106,6 +106,9 @@ function defaultLinkFields() {
       mediaDecided: false,
       allowLocation: false,
       locationDecided: false,
+      // On by default. Existing links pick this up too, because saved links
+      // are merged over these defaults when the store loads.
+      blockAds: true,
     },
   };
 }

@@ -15,6 +15,7 @@ No pre-made service templates. Every link is a URL you type in yourself.
 - **Hibernation** — fully closes a link's renderer to free memory, wakes it from disk-persisted cookies/localStorage.
 - **Tray & taskbar** — tray icon, taskbar overlay/flash, aggregate unread count across all links.
 - **Scroll arrows** — optional floating ▲/▼ buttons on every site (Settings → Appearance, off by default).
+- **Ad & tracker blocking** — on by default for every link (Ghostery adblocker); turn it off per link in Edit → Advanced.
 - **Userscripts** — your own JavaScript, run on pages matching a URL pattern.
 - **Startup commands** — run any shell command in the background when the app starts (e.g. to launch a locally-hosted service).
 - **Settings export/import** — one JSON file for links, groups, settings, userscripts, and commands.
@@ -148,6 +149,23 @@ Two paths, both required for broad compatibility:
   `preload/link-preload.js`, not a nested `eval()`/`Function()` — sites with
   a strict CSP (Gmail, ChatGPT) block the nested form. Editing a script
   takes effect on the next load/reload, not live.
+
+## Ad & tracker blocking
+
+On by default for every link, including links saved before the feature
+existed. Turn it off for one link with Edit → Advanced → "Block ads and
+trackers" (`navigation.blockAds`). Uses `@ghostery/adblocker-electron`, set up
+per link session in `src/main/adblock.js`.
+
+- It blocks network requests to known ad/tracker hosts and hides ad boxes on
+  the page.
+- The filter lists download on first use and are cached in the app data
+  folder (`adblock-engine.bin`). Until that first download ends, pages may
+  show ads. If the download fails, links still work, just unblocked.
+- Changing the setting takes effect the next time the link loads.
+- Most YouTube video ads are not blocked.
+- Disposable check: `scripts/adblock-smoke.js` (run it with the Electron
+  binary in `node_modules/electron/dist`; needs internet).
 
 ## Startup commands
 

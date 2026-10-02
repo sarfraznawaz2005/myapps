@@ -57,5 +57,8 @@
       "createStartMenuShortcut": true,
       "artifactName": "${productName}-Setup-${version}.${ext}"
     }
+  },
+  "dependencies": {
+    "@ghostery/adblocker-electron": "^2.18.2"
   }
 }

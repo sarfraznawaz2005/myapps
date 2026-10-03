@@ -123,8 +123,6 @@ function generalSection(s) {
     <div class="settings-section">
       <h3>Browsing</h3>
       ${checkboxRow('st-open-ext', 'Open unrelated links in the default browser by default', s.openExternalLinksInBrowser)}
-      ${checkboxRow('st-spellcheck', 'Spellcheck text fields', s.spellcheck)}
-      ${checkboxRow('st-reveal-pw', 'Show an eye button on password fields to reveal what you typed', s.revealPassword)}
       ${checkboxRow('st-confirm-delete', 'Confirm before deleting a link', s.confirmDelete)}
     </div>
     <div class="settings-section">
@@ -155,6 +153,25 @@ function generalSection(s) {
   `;
 }
 
+function featuresSection(s) {
+  return `
+    <div class="settings-section">
+      <h3>Pictures</h3>
+      ${checkboxRow('st-image-zoom', 'Zoom pictures on hover', s.imageZoom)}
+      <div class="hint">Move the mouse over a picture on any site to see it enlarged next to the mouse. Small icons and pictures that are already full size are skipped. Click anywhere to hide it.</div>
+    </div>
+    <div class="settings-section">
+      <h3>Page tools</h3>
+      ${checkboxRow('st-scroll-arrows', 'Show scroll up/down arrows on sites', s.scrollArrows)}
+    </div>
+    <div class="settings-section">
+      <h3>Text &amp; passwords</h3>
+      ${checkboxRow('st-spellcheck', 'Spellcheck text fields', s.spellcheck)}
+      ${checkboxRow('st-reveal-pw', 'Show an eye button on password fields to reveal what you typed', s.revealPassword)}
+    </div>
+  `;
+}
+
 function notificationsSection(s) {
   return `
     <div class="settings-section">
@@ -180,10 +197,6 @@ function appearanceSection(s) {
           <option value="light" ${s.theme === 'light' ? 'selected' : ''}>Light</option>
         </select>
       </div>
-    </div>
-    <div class="settings-section">
-      <h3>Site page</h3>
-      ${checkboxRow('st-scroll-arrows', 'Show scroll up/down arrows on sites', s.scrollArrows)}
     </div>
     <div class="settings-section">
       <h3>Taskbar indicator</h3>
@@ -516,6 +529,7 @@ async function renderSection() {
   const body = host.querySelector('.dialog-body');
   if (activeSection === 'links') body.innerHTML = linksSection(getState().links || [], getState().groups || []);
   else if (activeSection === 'general') body.innerHTML = generalSection(s);
+  else if (activeSection === 'features') body.innerHTML = featuresSection(s);
   else if (activeSection === 'notifications') body.innerHTML = notificationsSection(s);
   else if (activeSection === 'appearance') body.innerHTML = appearanceSection(s);
   else if (activeSection === 'performance') { body.innerHTML = '<div class="hint">Loading…</div>'; body.innerHTML = await performanceSection(); }
@@ -545,6 +559,7 @@ function wireSection(s) {
     'st-flash-taskbar': ['flashTaskbar', 'checked'],
     'st-overlay': ['showOverlayIcon', 'checked'],
     'st-scroll-arrows': ['scrollArrows', 'checked'],
+    'st-image-zoom': ['imageZoom', 'checked'],
     'st-overlay-style': ['overlayStyle', 'value'],
     'st-theme': ['theme', 'value'],
     'st-default-hib': ['defaultHibernate', 'value'],
@@ -830,6 +845,7 @@ export function openSettingsDialog() {
   const sections = [
     ['links', 'Links'],
     ['general', 'General'],
+    ['features', 'Features'],
     ['notifications', 'Notifications'],
     ['appearance', 'Appearance'],
     ['performance', 'Performance'],

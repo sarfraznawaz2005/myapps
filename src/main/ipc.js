@@ -95,6 +95,7 @@ function buildLinkRuleConfig(link, settings, userscripts) {
     whatsapp: cleanWhatsapp(link.whatsapp),
     passwordManager: !!(settings && settings.passwordManager),
     revealPassword: !!(settings && settings.revealPassword),
+    imageZoom: !!(settings && settings.imageZoom),
     // Sent as raw (matches + code), one list for every link — the page
     // itself decides whether any pattern matches its own URL. Userscripts
     // only run once per page load, so editing one only takes effect on the
@@ -553,7 +554,7 @@ function initIpc(ctx) {
     }
     tray.refreshMenu();
     if (Object.prototype.hasOwnProperty.call(patch, 'dnd')) recomputeAggregate(ctx);
-    if (Object.prototype.hasOwnProperty.call(patch, 'scrollArrows') || Object.prototype.hasOwnProperty.call(patch, 'highlightKeywords') || Object.prototype.hasOwnProperty.call(patch, 'passwordManager') || Object.prototype.hasOwnProperty.call(patch, 'revealPassword')) broadcastLinkConfig(ctx);
+    if (Object.prototype.hasOwnProperty.call(patch, 'scrollArrows') || Object.prototype.hasOwnProperty.call(patch, 'highlightKeywords') || Object.prototype.hasOwnProperty.call(patch, 'passwordManager') || Object.prototype.hasOwnProperty.call(patch, 'revealPassword') || Object.prototype.hasOwnProperty.call(patch, 'imageZoom')) broadcastLinkConfig(ctx);
     if (Object.prototype.hasOwnProperty.call(patch, 'dnsProvider') || Object.prototype.hasOwnProperty.call(patch, 'dnsCustomServer')) {
       applyDnsSettings(settings);
     }

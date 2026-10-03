@@ -396,6 +396,134 @@ function setupKeywordHighlighter(initial) {
   apply(initial);
 }
 
+// Image zoom (Settings > Features): hover a picture to see it enlarged next to
+// the mouse. Runs in the isolated world and only touches the page through the
+// shared DOM (one fixed <img>, styled via CSSOM so a strict CSP can't block it).
+// With the feature off it adds nothing but a few idle listeners.
+function setupImageZoom(initiallyOn) {
+  const MIN_SIZE = 64; // skip pictures smaller than this (likely icons)
+  const MAX_W = 800;
+  const MAX_H = 800;
+  const MIN_PREVIEW = 320; // smaller pictures (avatars, thumbnails) are scaled up to this
+  const OFFSET = 20; // gap between mouse and preview
+
+  // Size the preview is shown at: scaled up when small, scaled down to fit the max.
+  function previewSize(nw, nh) {
+    let s = Math.max(nw, nh) < MIN_PREVIEW ? MIN_PREVIEW / Math.max(nw, nh) : 1;
+    s = Math.min(s, MAX_W / nw, MAX_H / nh);
+    return [Math.round(nw * s), Math.round(nh * s)];
+  }
+
+  let on = initiallyOn;
+  let preview = null;
+  let sourceImg = null; // the element being hovered (kept after a rejected one, so it isn't retried)
+  let lastX = -1;
+  let lastY = -1;
+  let lastHref = location.href;
+  let raf = 0;
+
+  function clearPreview() {
+    if (preview) { preview.remove(); preview = null; }
+    sourceImg = null;
+  }
+
+  function position() {
+    if (!preview) return;
+    const rect = preview.getBoundingClientRect();
+    let px = lastX + OFFSET;
+    let py = lastY + OFFSET;
+    if (px + rect.width > window.innerWidth) px = lastX - rect.width - OFFSET;
+    if (py + rect.height > window.innerHeight) py = lastY - rect.height - OFFSET;
+    preview.style.left = `${Math.max(0, px)}px`;
+    preview.style.top = `${Math.max(0, py)}px`;
+  }
+
+  // Runs every frame while hovering a picture: follows the mouse, and hides the
+  // preview once the mouse leaves the picture's on-screen box or the page navigates.
+  function tick() {
+    raf = 0;
+    if (location.href !== lastHref) { lastHref = location.href; clearPreview(); }
+    if (!sourceImg) return;
+    const r = sourceImg.isConnected ? sourceImg.getBoundingClientRect() : null;
+    const inside = r && r.width > 0 && r.height > 0 &&
+      lastX >= r.left && lastX <= r.right && lastY >= r.top && lastY <= r.bottom;
+    if (!inside) { clearPreview(); return; }
+    position();
+    raf = requestAnimationFrame(tick);
+  }
+
+  // Sites show pictures in many ways: <img>, SVG <image> (Facebook avatars), and
+  // CSS background-image. Invisible overlay layers often sit on top of them, so
+  // look through everything under the mouse and take the topmost picture.
+  function findPicture(x, y) {
+    const stack = document.elementsFromPoint(x, y).slice(0, 12);
+    for (const el of stack) {
+      let src = null;
+      let box = el;
+      if (el instanceof HTMLImageElement) {
+        src = el.currentSrc || el.src;
+      } else if (el instanceof SVGImageElement) {
+        src = el.href && el.href.baseVal;
+        box = el.ownerSVGElement || el;
+      } else if (el instanceof HTMLElement) {
+        const m = /url\((["']?)(.*?)\1\)/.exec(getComputedStyle(el).backgroundImage);
+        src = m && m[2];
+      }
+      if (!src) continue;
+      try { src = new URL(src, document.baseURI).href; } catch (_e) { continue; }
+      return { box, src };
+    }
+    return null;
+  }
+
+  document.addEventListener('mouseover', (e) => {
+    if (!on) return;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    const pic = findPicture(lastX, lastY);
+    if (!pic || pic.box === sourceImg || !document.body) return;
+    clearPreview();
+    sourceImg = pic.box;
+    if (!raf) raf = requestAnimationFrame(tick);
+
+    const el = document.createElement('img');
+    Object.assign(el.style, {
+      all: 'initial', position: 'fixed', zIndex: '2147483647', display: 'block',
+      pointerEvents: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+      border: '2px solid #fff', borderRadius: '4px', background: '#fff',
+    });
+    const reject = () => { if (preview === el) { el.remove(); preview = null; } };
+    el.addEventListener('error', reject);
+    el.addEventListener('load', () => {
+      if (preview !== el || !sourceImg) return;
+      // Judged once the real size is known: skip icons, and skip pictures that
+      // are already shown (nearly) as big as the preview would be.
+      const nw = el.naturalWidth;
+      const nh = el.naturalHeight;
+      const shown = sourceImg.getBoundingClientRect();
+      if (!nw || !nh || (nw < MIN_SIZE && shown.width < MIN_SIZE) || (nh < MIN_SIZE && shown.height < MIN_SIZE)) { reject(); return; }
+      const [w, h] = previewSize(nw, nh);
+      if (shown.width >= w * 0.95 && shown.height >= h * 0.95) { reject(); return; }
+      el.style.width = `${w}px`;
+      el.style.height = `${h}px`;
+      document.body.appendChild(el);
+      position();
+    });
+    preview = el;
+    el.src = pic.src;
+  }, true);
+
+  document.addEventListener('mousemove', (e) => { lastX = e.clientX; lastY = e.clientY; }, true);
+  document.addEventListener('mousedown', clearPreview, true); // any click hides it
+  document.addEventListener('mouseleave', clearPreview, true);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) clearPreview(); });
+
+  ipcRenderer.on('link:config', (_e, cfg) => {
+    on = !!(cfg && cfg.imageZoom);
+    if (!on) clearPreview();
+  });
+}
+
 if (linkId) {
   // One synchronous round-trip for this link's current config + the
   // injected-script source text (main reads inject-main-world.js from disk
@@ -420,7 +548,8 @@ if (linkId) {
   });
 
   setupKeywordHighlighter(boot.config && boot.config.highlightKeywords);
-  setupPasswordManager(!!(boot.config && boot.config.passwordManager), !!(boot.config && boot.config.revealPassword));
+  setupImageZoom(!!(boot.config && boot.config.imageZoom));
+  setupPasswordManager(!!(boot.config && boot.config.passwordManager),!!(boot.config && boot.config.revealPassword));
 
   // A cross-origin iframe (ad, tracker, embed) is not the site itself: it never
   // raises the site's notifications or badge, and parsing ~20KB of script in

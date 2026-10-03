@@ -84,7 +84,6 @@ function defaultLinkFields() {
       blurMessages: false,
       blurRecent: false,
       hideOnline: false,
-      hideBlueTicks: false,
       viewStatusPrivately: false,
       restoreDeleted: false,
       notifyOnline: false,
@@ -147,6 +146,18 @@ const MIGRATIONS = {
     state.version = 2;
     return state;
   },
+};
+
+// The "hide blue ticks" option was removed; drop any saved value so it can
+// not light up the WhatsApp toolbar button or linger in the file.
+MIGRATIONS[2] = (state) => {
+  if (Array.isArray(state.links)) {
+    for (const l of state.links) {
+      if (l && l.whatsapp && typeof l.whatsapp === 'object') delete l.whatsapp.hideBlueTicks;
+    }
+  }
+  state.version = 3;
+  return state;
 };
 
 function runMigrations(state) {

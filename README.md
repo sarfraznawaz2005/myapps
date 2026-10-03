@@ -18,7 +18,7 @@ No pre-made service templates. Every link is a URL you type in yourself.
 - **Ad & tracker blocking** — on by default for every link (Ghostery adblocker); turn it off per link in Edit → Advanced.
 - **Dark mode** — moon/sun button in the toolbar forces a dark look on the current link; remembered per link across restarts.
 - **Keyword highlighter** — highlighter button in the toolbar; one global list of words, highlighted automatically on every page (including pages that change after load). Each keyword needs at least 3 characters. Empty list = off.
-- **WhatsApp extras** — on any web.whatsapp.com link: blur names/photos/messages, hide online status, hide blue ticks, view statuses privately, restore deleted messages, online notifications, chat with a number not in your contacts. Chosen per link from a toolbar button that shows only on WhatsApp.
+- **WhatsApp extras** — on any web.whatsapp.com link: blur names/photos/messages, hide online status, view statuses privately, restore deleted messages, online notifications, chat with a number not in your contacts. Chosen per link from a toolbar button that shows only on WhatsApp.
 - **Userscripts** — your own JavaScript, run on pages matching a URL pattern.
 - **Startup commands** — run any shell command in the background when the app starts (e.g. to launch a locally-hosted service).
 - **Settings export/import** — one JSON file for links, groups, settings, userscripts, and commands.
@@ -189,8 +189,12 @@ injected only on WhatsApp.
 
 - **Blur** contact names, photos, conversation messages and recent messages
   (CSS only; blur clears while the pointer is over it).
-- **Hide online status**, **hide blue ticks**, **view statuses privately** —
+- **Hide online status**, **view statuses privately** —
   these replace the matching functions inside WhatsApp's own code.
+- There is no "hide blue ticks" option, on purpose. It cannot work from inside
+  an app: WhatsApp only hides read receipts if the account's own "Read receipts"
+  privacy setting is off, and blocking them instead leaves chats unread on
+  your phone. Use WhatsApp's own privacy setting for that.
 - **Restore deleted messages** — copies of incoming text messages are kept in
   memory only, so only messages received while the app was open can be
   restored, and nothing survives a restart. The original text shows under the

@@ -44,7 +44,7 @@ function cleanKeywords(list) {
 }
 
 const WHATSAPP_FLAGS = ['blurNames', 'blurPhotos', 'blurMessages', 'blurRecent', 'hideOnline',
-  'hideBlueTicks', 'viewStatusPrivately', 'restoreDeleted', 'notifyOnline'];
+  'viewStatusPrivately', 'restoreDeleted', 'notifyOnline'];
 
 // Only known keys, only booleans / a short list of short strings.
 function cleanWhatsapp(input) {

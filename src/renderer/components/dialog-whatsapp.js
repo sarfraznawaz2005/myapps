@@ -12,7 +12,6 @@ const GROUPS = [
   ] },
   { title: 'Privacy', items: [
     ['hideOnline', 'Hide online status (invisible mode)', 'Contacts will not see you online.'],
-    ['hideBlueTicks', 'Hide blue ticks', 'Others will not see that you read their messages.'],
     ['viewStatusPrivately', 'View statuses privately', 'The owner will not see that you viewed a status.'],
     ['restoreDeleted', 'Restore deleted messages', 'Shows the original text of messages deleted while this app was open. Kept in memory only, gone when the app closes.'],
   ] },

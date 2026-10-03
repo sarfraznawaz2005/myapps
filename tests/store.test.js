@@ -7,6 +7,7 @@ const path = require('path');
 const { install, freshUserData, stub } = require('./helpers/electronStub');
 install();
 const { Store, defaultSettings } = require('../src/main/store');
+const { STORE_VERSION } = require('../src/main/constants');
 
 describe('Store settings + defaults', () => {
   beforeEach(() => { freshUserData(); });
@@ -61,7 +62,26 @@ describe('Store settings + defaults', () => {
     assert.equal(a.hibernate.keepAwake, true);
     assert.equal(b2.hibernate.policy, 'idle'); // user turned keepAwake off on purpose
     assert.equal(c.hibernate.policy, 'never');
-    assert.equal(s.getState().version, 2);
+    assert.equal(s.getState().version, STORE_VERSION); // runs on through every later migration too
+  });
+
+  test('migration 2 -> 3 drops the removed hideBlueTicks value and keeps other WhatsApp choices', () => {
+    const base = { url: 'https://web.whatsapp.com', partition: 'persist:link-w' };
+    fs.writeFileSync(path.join(stub.userData, 'store.json'), JSON.stringify({
+      version: 2,
+      links: [
+        { ...base, id: 'w', name: 'W', whatsapp: { hideBlueTicks: true, blurNames: true, notifyContacts: ['Amy'] } },
+        { ...base, id: 'x', name: 'X' },
+      ],
+    }));
+    const s = new Store();
+    s.load();
+    const [w, x] = s.getState().links;
+    assert.equal('hideBlueTicks' in w.whatsapp, false);
+    assert.equal(w.whatsapp.blurNames, true);
+    assert.deepEqual(w.whatsapp.notifyContacts, ['Amy']);
+    assert.equal('hideBlueTicks' in x.whatsapp, false);
+    assert.equal(s.getState().version, STORE_VERSION);
   });
 
   test('updateSettings merges, nested dnd too', () => {

@@ -10,7 +10,7 @@
 // Two kinds of feature:
 //  - CSS only: the four "blur" options.
 //  - Hooks into WhatsApp's own modules (found through window.require, the
-//    loader WhatsApp Web itself uses): hide online status, hide blue ticks,
+//    loader WhatsApp Web itself uses): hide online status,
 //    view statuses privately, restore deleted messages, online notifications.
 //    WhatsApp renames its internals now and then, so each hook is looked up
 //    by shape, can fail on its own, and the panel says so when it does.
@@ -22,7 +22,7 @@
   if (!bridge) return;
 
   var BOOL_KEYS = ['blurNames', 'blurPhotos', 'blurMessages', 'blurRecent', 'hideOnline',
-    'hideBlueTicks', 'viewStatusPrivately', 'restoreDeleted', 'notifyOnline'];
+    'viewStatusPrivately', 'restoreDeleted', 'notifyOnline'];
 
   var settings = normalize((bridge.initialConfig || {}).whatsapp);
   var status = {}; // feature key -> 'ok' | 'missing'
@@ -158,11 +158,6 @@
       return m ? m.ChatPresence : null;
     })();
   };
-  var findSeenFns = function () {
-    return findModule('seenFns', /Seen|Receipt|Read|Conversation|Chat/i, function (m) {
-      return typeof m.sendConversationSeen === 'function';
-    });
-  };
   // Where WhatsApp keeps "mark this status as read": a module that exports
   // sendReadStatus itself (current versions), or a status model class with
   // it on its prototype (older versions). Try the exact name first so no
@@ -242,19 +237,8 @@
   }
 
   // ---------------------------------------------------------------------
-  // Hide blue ticks / view statuses privately
+  // View statuses privately
   // ---------------------------------------------------------------------
-  function applyHideBlueTicks() {
-    var fns = findSeenFns();
-    if (settings.hideBlueTicks) {
-      if (!fns) { status.hideBlueTicks = 'missing'; return; }
-      status.hideBlueTicks = patch(fns, 'sendConversationSeen', resolved) ? 'ok' : 'missing';
-    } else {
-      if (fns) unpatch(fns, 'sendConversationSeen');
-      delete status.hideBlueTicks;
-    }
-  }
-
   function applyViewStatusPrivately() {
     var fns = findStatusFns();
     var model = findStatusModel();
@@ -490,12 +474,11 @@
     applyBlur();
     if (typeof window.require === 'function') {
       applyHideOnline();
-      applyHideBlueTicks();
       applyViewStatusPrivately();
       applyRestoreDeleted();
       applyNotifyOnline();
     } else {
-      ['hideOnline', 'hideBlueTicks', 'viewStatusPrivately', 'restoreDeleted', 'notifyOnline'].forEach(function (k) {
+      ['hideOnline', 'viewStatusPrivately', 'restoreDeleted', 'notifyOnline'].forEach(function (k) {
         if (settings[k]) status[k] = 'missing';
       });
     }

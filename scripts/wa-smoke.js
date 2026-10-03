@@ -21,17 +21,17 @@ const FAKE = `
                   get: function(){ return { name: 'Alice Smith' }; } };
   var presenceFns = { sendPresenceAvailable: function(){ window.calls.avail++; return Promise.resolve(); },
                       sendPresenceUnavailable: function(){ window.calls.unavail++; return Promise.resolve(); } };
-  var seenFns = { sendConversationSeen: function(){ window.calls.seen++; return Promise.resolve(); } };
   function StatusV3Model(){} StatusV3Model.prototype.sendReadStatus = function(){ window.calls.statusRead++; };
   var mods = {
     'WAWebChatPresenceBridge': presenceFns,
-    'WAWebSendSeenBridge': seenFns,
+    'WAWebUserPrefsGeneral': { getUserPrivacySettings: function(){ return { readReceipts: 'all', lastSeen: 'all' }; } },
+    'WAWebPrivacySettings': { ALL_NONE: { all: 'all', none: 'none' } },
     'WAWebContactStatusBridge': { sendReadStatus: function(){ window.calls.statusBridge = (window.calls.statusBridge||0)+1; } },
     'WAWebStatusV3Model': { default: StatusV3Model },
     'WAWebCollections': { Msg: Msg, Presence: Presence, Contact: Contact },
     'WAWebUnrelated': { nothing: true }
   };
-  window.__fake = { Msg: Msg, presModel: presModel, presenceFns: presenceFns, seenFns: seenFns, StatusV3Model: StatusV3Model, mods: mods };
+  window.__fake = { Msg: Msg, presModel: presModel, presenceFns: presenceFns, StatusV3Model: StatusV3Model, mods: mods };
   window.require = function(name){
     if (name === '__debug') return { modulesMap: mods };
     if (mods[name]) return mods[name];
@@ -88,7 +88,7 @@ app.whenReady().then(async () => {
   const f4 = (id) => run4(`getComputedStyle(document.getElementById('${id}')).filter`);
   const before4 = [await f4('name'), await f4('avatar'), await f4('preview')].every((v) => v.includes('blur'));
   win4.webContents.sendInputEvent({ type: 'mouseMove', x: 450, y: 60 }); // on the row, far from every blurred part
-  await sleep(600);
+  await sleep(1200); // longer than the .15s CSS fade
   const after4 = [await f4('name'), await f4('avatar'), await f4('preview')];
   check(before4 && after4.every((v) => v === 'none'), 'hovering a chat row clears name, avatar and preview together: ' + after4.join(' / '));
   win4.destroy();
@@ -111,7 +111,7 @@ app.whenReady().then(async () => {
   const filt = (q) => run3(`getComputedStyle(document.querySelector('${q}')).filter`);
   check((await filt('.message-in')).includes('blur'), 'message is blurred before hover');
   win3.webContents.sendInputEvent({ type: 'mouseMove', x: 300, y: 70 }); // on the row, far from the message and the time
-  await sleep(600);
+  await sleep(1200);
   check((await filt('.message-in')) === 'none' && (await filt('#time')) === 'none', 'hovering the row clears message and time together: ' + await filt('.message-in') + ' / ' + await filt('#time'));
   win3.destroy();
 
@@ -122,14 +122,6 @@ app.whenReady().then(async () => {
   await run(`__setCfg({ hideOnline: false })`);
   const before = await run(`window.calls.avail`);
   check(await run(`window.calls.avail >= 1`) && before >= 1, 'turning it off restores the original function (and announces again)');
-
-  // blue ticks
-  await run(`__setCfg({ hideBlueTicks: true })`);
-  await run(`__fake.seenFns.sendConversationSeen()`);
-  check(await run(`window.calls.seen === 0`), 'hideBlueTicks blocks sendConversationSeen');
-  await run(`__setCfg({ hideBlueTicks: false })`);
-  await run(`__fake.seenFns.sendConversationSeen()`);
-  check(await run(`window.calls.seen === 1`), 'blue ticks restored when off');
 
   // status
   await run(`__setCfg({ viewStatusPrivately: true })`);

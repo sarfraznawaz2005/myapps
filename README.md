@@ -16,6 +16,7 @@ No pre-made service templates. Every link is a URL you type in yourself.
 - **Tray & taskbar** — tray icon, taskbar overlay/flash, aggregate unread count across all links.
 - **Scroll arrows** — optional floating ▲/▼ buttons on every site (Settings → Appearance, off by default).
 - **Ad & tracker blocking** — on by default for every link (Ghostery adblocker); turn it off per link in Edit → Advanced.
+- **Ctrl+Tab link switcher** — press Ctrl+Tab to see every link as cards: keep pressing Tab to move (Shift+Tab goes back), let go of Ctrl to switch; on by default, turn it off in Settings → Features.
 - **Dark mode** — moon/sun button in the toolbar forces a dark look on the current link; remembered per link across restarts.
 - **Keyword highlighter** — highlighter button in the toolbar; one global list of words, highlighted automatically on every page (including pages that change after load). Each keyword needs at least 3 characters. Empty list = off.
 - **WhatsApp extras** — on any web.whatsapp.com link: blur names/photos/messages, hide online status, view statuses privately, restore deleted messages, online notifications, chat with a number not in your contacts. Chosen per link from a toolbar button that shows only on WhatsApp.
@@ -209,6 +210,40 @@ blur selectors (`BLUR_SELECTORS`) and module lookups can then stop working; an
 option that cannot attach shows "Not available in this version of WhatsApp Web".
 Hiding read receipts or presence may go against WhatsApp's terms; use at your own
 risk.
+
+## Ctrl+Tab link switcher
+
+Press **Ctrl+Tab** while a My Apps window is in front to see a card for every
+link. Awake links come first, then asleep ones, each A to Z. Each card has the
+sidebar's status icon (moon = asleep, red number = unread, green dot = loaded);
+the link you are on is tagged "Current" and is the one highlighted when it opens.
+
+- Keep holding Ctrl and press **Tab** to move to the next card, **Shift+Tab** to
+  the previous one. The arrow keys move too, and holding Tab keeps moving.
+- **Let go of Ctrl** to switch to the highlighted link. **Enter** does the same.
+- **Esc**, a click outside the cards, or leaving the window closes it without
+  switching. Clicking a card switches.
+
+Settings → Features → "Ctrl+Tab link switcher" turns it off (on by default).
+
+- It only works while My Apps has keyboard focus. A system-wide version would
+  need a global keyboard hook, which sees every key typed in every program, so
+  it was left out on purpose.
+- The cards are a separate transparent view on top of the page
+  (`src/main/switcherOverlay.js`, `src/renderer/switcher.html`). The page behind
+  is not hidden. Ctrl+Tab itself is caught on the window; once the cards are
+  open they take the keyboard focus and send every key press and release back to
+  the app. That is deliberate: when the app swallows a key press, Chromium also
+  drops the matching key release, so the release of Ctrl never arrived and
+  switching waited for a timer. Keys handled by a page are not dropped, so the
+  release now switches at once. (Hiding the page instead made Chromium fake a key
+  release.)
+- Safety net: if the release of Ctrl is somehow never delivered, 2 seconds with
+  no key event at all counts as letting go. Holding Ctrl keeps repeating its key
+  press, so holding never triggers it.
+- To see which key events reach the app, start it with `MYAPPS_KEYDBG=1`
+  (PowerShell: `$env:MYAPPS_KEYDBG=1; npm start`): Ctrl, Tab, arrow, Enter and
+  Esc events are printed as `[switcher-keys]` lines. Nothing else is logged.
 
 ## Startup commands
 

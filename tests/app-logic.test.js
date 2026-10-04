@@ -438,3 +438,343 @@ describe('ad blocker page scripts (scriptlets)', () => {
     assert.deepEqual(calls.css, ['.ad{display:none}']);
   });
 });
+
+describe('Ctrl+Tab link switcher (LinkSwitcher)', () => {
+  const { LinkSwitcher } = require('../src/main/linkSwitcher');
+
+  const DEFAULT_LINKS = [
+    { id: 'a', name: 'Alpha Chat', url: 'https://web.whatsapp.com/', enabled: true, order: 0, groupId: null },
+    { id: 'b', name: 'Beta Outlook', url: 'https://outlook.office.com/mail/', enabled: true, order: 1, groupId: null },
+    { id: 'c', name: 'Gamma Gmail', url: 'https://mail.google.com/', enabled: true, order: 2, groupId: null },
+    { id: 'd', name: 'Hidden', url: 'https://hidden.example/', enabled: false, order: 3, groupId: null }, // hidden link
+  ];
+
+  function setup({ enabled = true, locked = false, activeId = 'a', links, getStatus } = {}) {
+    const overlay = {
+      shown: false, calls: [], state: null,
+      show(state) { this.shown = true; this.state = state; this.calls.push('show'); },
+      update(state) { this.state = state; this.calls.push('update'); },
+      hide() { this.shown = false; this.calls.push('hide'); },
+    };
+    const vm = {
+      locked, modal: false, active: activeId, activated: [], focused: 0,
+      getActiveId() { return this.active; },
+      setModalOpen(v) { this.modal = v; },
+      focusShell() {},
+      focusActive() { this.focused++; },
+      activate(id) { this.activated.push(id); this.active = id; },
+    };
+    const all = links || DEFAULT_LINKS;
+    const store = { getState: () => ({ groups: [], links: all, settings: { linkSwitcher: enabled } }) };
+    const sw = new LinkSwitcher({ store, viewManager: vm, overlay, getStatus });
+    // While it is open the keys come from the overlay page (it has the focus); before that, from a window.
+    const key = (type, k, extra = {}) => sw.handleInput({ type, key: k, control: false, shift: false, alt: false, meta: false, isAutoRepeat: false, ...extra }, sw.isOpen ? 'overlay' : 'window');
+    const ids = () => overlay.state.items.map((i) => i.id);
+    // Fake timers: nothing waits in real time. fire() runs the pending release fallback.
+    const timers = { next: 1, live: new Map() };
+    sw.timers = {
+      set: (fn, ms) => { const id = timers.next++; timers.live.set(id, { fn, ms }); return id; },
+      clear: (id) => { timers.live.delete(id); },
+    };
+    const fire = () => { const first = [...timers.live][0]; if (first) { timers.live.delete(first[0]); first[1].fn(); } };
+    const open = () => key('keyDown', 'Tab', CTRL);
+    const release = () => key('keyUp', 'Control', {}); // Ctrl let go (the flags then say no Ctrl)
+    return { sw, vm, overlay, key, ids, timers, fire, open, release };
+  }
+  const CTRL = { control: true };
+
+  test('Ctrl+Tab opens it with the link you are on highlighted', () => {
+    const { sw, overlay, key, ids } = setup({ activeId: 'b' });
+    assert.equal(key('keyDown', 'Tab', CTRL), true);
+    assert.equal(sw.isOpen, true);
+    assert.deepEqual(ids(), ['a', 'b', 'c']);
+    assert.equal(overlay.state.index, 1); // b is the current link
+    assert.equal(overlay.state.items[1].current, true);
+  });
+
+  test('Ctrl+Shift+Tab also opens it on the link you are on', () => {
+    const { overlay, key } = setup({ activeId: 'c' });
+    assert.equal(key('keyDown', 'Tab', { control: true, shift: true }), true);
+    assert.equal(overlay.state.index, 2);
+  });
+
+  test('the highlight starts on the current link wherever it falls in the list', () => {
+    for (const [activeId, expected] of [['a', 0], ['b', 1], ['c', 2]]) {
+      const t = setup({ activeId });
+      t.open();
+      assert.equal(t.overlay.state.index, expected, activeId);
+    }
+  });
+
+  test('letting go straight after opening keeps the current link (nothing to switch)', () => {
+    const { sw, vm, overlay, open, release } = setup({ activeId: 'b' });
+    open();
+    release();
+    assert.deepEqual(vm.activated, []);
+    assert.equal(sw.isOpen, false);
+    assert.equal(overlay.shown, false);
+  });
+
+  test('there is no search: typed keys are used up and change nothing', () => {
+    const { sw, key, open } = setup({ activeId: 'a' });
+    open();
+    assert.equal(key('keyDown', 'g', CTRL), true);
+    assert.equal(key('keyDown', 'Backspace', CTRL), true);
+    assert.equal(sw.index, 0);
+    assert.equal(sw.cards.length, 3);
+  });
+
+  test('cards are A to Z by name (ignoring case, numbers as numbers), hidden links left out', () => {
+    const { open, ids } = setup({ activeId: '1', links: [
+      { id: '1', name: 'zebra', url: '', enabled: true, order: 0, groupId: null },
+      { id: '2', name: 'App 10', url: '', enabled: true, order: 1, groupId: null },
+      { id: '3', name: 'apple', url: '', enabled: true, order: 2, groupId: null },
+      { id: '4', name: 'App 2', url: '', enabled: true, order: 3, groupId: null },
+      { id: '5', name: 'Nope', url: '', enabled: false, order: 4, groupId: null },
+    ] });
+    open();
+    assert.deepEqual(ids(), ['4', '2', '3', '1']); // App 2, App 10, apple, zebra
+  });
+
+  test('awake links come first, then asleep ones, each group A to Z', () => {
+    const asleep = { a: false, b: true, c: false };
+    const { open, ids, overlay } = setup({ getStatus: (id) => ({ asleep: asleep[id] }) });
+    open();
+    assert.deepEqual(ids(), ['a', 'c', 'b']); // awake: Alpha, Gamma; asleep: Beta
+    assert.deepEqual(overlay.state.items.map((i) => i.asleep), [false, false, true]);
+  });
+
+  test('it never hides the page or moves keyboard focus itself', () => {
+    const { vm, open } = setup();
+    let shellFocused = false;
+    vm.focusShell = () => { shellFocused = true; };
+    open();
+    assert.equal(vm.modal, false);
+    assert.equal(shellFocused, false);
+  });
+
+  test('each card carries name, letter or icon file, current flag and the sidebar status', () => {
+    const statuses = { a: { asleep: false, count: null, activity: false }, b: { asleep: false, count: 4, activity: false }, c: { asleep: true, count: null, activity: false } };
+    const { overlay, open } = setup({
+      links: [
+        { id: 'a', name: 'Alpha', url: 'https://a.example/', enabled: true, order: 0, groupId: null },
+        { id: 'b', name: 'Beta', url: 'https://b.example/', enabled: true, order: 1, groupId: null, icon: { path: 'C:\\icons\\b.png' } },
+        { id: 'c', name: 'Gamma', url: 'https://c.example/', enabled: true, order: 2, groupId: null },
+      ],
+      getStatus: (id) => statuses[id],
+    });
+    open();
+    assert.deepEqual(overlay.state.items.map((i) => [i.name, i.letter, i.icon, i.current, i.asleep, i.count]), [
+      ['Alpha', 'A', null, true, false, null],
+      ['Beta', 'B', 'file:///C:/icons/b.png', false, false, 4],
+      ['Gamma', 'G', null, false, true, null],
+    ]);
+  });
+
+  test('only Ctrl+Tab opens it: plain Tab, Ctrl alone, and Ctrl combined with Alt or Win do not', () => {
+    const { sw, key } = setup();
+    assert.equal(key('keyDown', 'Tab'), false);
+    assert.equal(key('keyDown', 'Control', CTRL), false);
+    assert.equal(key('keyDown', 'Tab', { control: true, alt: true }), false);
+    assert.equal(key('keyDown', 'Tab', { control: true, meta: true }), false);
+    assert.equal(key('keyUp', 'Tab', CTRL), false);
+    assert.equal(sw.isOpen, false);
+  });
+
+  test('a held Ctrl+Tab that repeats does not open it', () => {
+    const { sw, key } = setup();
+    assert.equal(key('keyDown', 'Tab', { control: true, isAutoRepeat: true }), false);
+    assert.equal(sw.isOpen, false);
+  });
+
+  test('pressing Tab moves to the next card, Shift+Tab to the previous one, both wrapping round', () => {
+    const { sw, key, open } = setup({ activeId: 'a' });
+    open(); assert.equal(sw.index, 0);
+    key('keyDown', 'Tab', CTRL); assert.equal(sw.index, 1);
+    key('keyDown', 'Tab', CTRL); assert.equal(sw.index, 2);
+    key('keyDown', 'Tab', CTRL); assert.equal(sw.index, 0); // wraps
+    key('keyDown', 'Tab', { control: true, shift: true }); assert.equal(sw.index, 2); // back, wraps
+    key('keyDown', 'Tab', { control: true, shift: true }); assert.equal(sw.index, 1);
+  });
+
+  test('the arrow keys also move the highlight', () => {
+    const { sw, key, open } = setup({ activeId: 'a' });
+    open(); // index 0
+    key('keyDown', 'ArrowRight', CTRL); assert.equal(sw.index, 1);
+    key('keyDown', 'ArrowDown', CTRL); assert.equal(sw.index, 2);
+    key('keyDown', 'ArrowLeft', CTRL); assert.equal(sw.index, 1);
+    key('keyDown', 'ArrowUp', CTRL); assert.equal(sw.index, 0);
+  });
+
+  test('holding Tab (it repeats) keeps moving once it is open', () => {
+    const { sw, key, open } = setup({ activeId: 'a' });
+    open();
+    key('keyDown', 'Tab', { control: true, isAutoRepeat: true });
+    key('keyDown', 'Tab', { control: true, isAutoRepeat: true });
+    assert.equal(sw.index, 2);
+  });
+
+  test('letting go of Ctrl switches to the highlighted link at once', () => {
+    const { sw, vm, overlay, key, open, release } = setup({ activeId: 'a' });
+    open();
+    key('keyDown', 'Tab', CTRL); // -> b
+    key('keyDown', 'Tab', CTRL); // -> c
+    assert.equal(release(), false); // the release is not swallowed
+    assert.deepEqual(vm.activated, ['c']);
+    assert.equal(sw.isOpen, false);
+    assert.equal(overlay.shown, false);
+  });
+
+  test('Ctrl+Tab, Tab, release switches to the next card', () => {
+    const { vm, key, open, release } = setup({ activeId: 'a' });
+    open();
+    key('keyDown', 'Tab', CTRL);
+    release();
+    assert.deepEqual(vm.activated, ['b']);
+  });
+
+  test('the release of Ctrl is recognised by which key it is, even if its modifier flags are unreliable', () => {
+    const { sw, vm, key, open } = setup({ activeId: 'a' });
+    open();
+    key('keyDown', 'Tab', CTRL);
+    key('keyUp', 'Control', { control: true }); // flags still claim Ctrl is down
+    assert.deepEqual(vm.activated, ['b']);
+    assert.equal(sw.isOpen, false);
+  });
+
+  test('releasing Tab (Ctrl still held) does not switch', () => {
+    const { sw, vm, key, open } = setup();
+    open();
+    key('keyUp', 'Tab', CTRL);
+    assert.equal(sw.isOpen, true);
+    assert.deepEqual(vm.activated, []);
+  });
+
+  test('once open, key events from the windows are only echoes and are ignored', () => {
+    const { sw, vm, open } = setup({ activeId: 'a' });
+    open();
+    // Chromium fakes a key release in the page that just lost the focus: it must not switch.
+    assert.equal(sw.handleInput({ type: 'keyUp', key: 'Control', control: false, shift: false, alt: false, meta: false }, 'window'), false);
+    assert.equal(sw.handleInput({ type: 'keyDown', key: 'Enter', control: true }, 'window'), false);
+    assert.equal(sw.isOpen, true);
+    assert.deepEqual(vm.activated, []);
+  });
+
+  test('keys reported by the overlay cannot open it, only a window can', () => {
+    const { sw } = setup();
+    assert.equal(sw.handleInput({ type: 'keyDown', key: 'Tab', control: true, shift: false, alt: false, meta: false, isAutoRepeat: false }, 'overlay'), false);
+    assert.equal(sw.isOpen, false);
+  });
+
+  test('Enter switches to the highlighted link and closes it', () => {
+    const { sw, vm, overlay, key, open } = setup({ activeId: 'a' });
+    open();
+    key('keyDown', 'Tab', CTRL); // -> b
+    assert.equal(key('keyDown', 'Enter', CTRL), true);
+    assert.deepEqual(vm.activated, ['b']);
+    assert.equal(sw.isOpen, false);
+    assert.equal(overlay.calls[overlay.calls.length - 1], 'hide');
+  });
+
+  test('Escape closes it without switching', () => {
+    const { sw, vm, overlay, key, open } = setup();
+    open();
+    key('keyDown', 'Tab', CTRL);
+    key('keyDown', 'Escape', CTRL);
+    assert.equal(sw.isOpen, false);
+    assert.deepEqual(vm.activated, []);
+    assert.equal(overlay.shown, false);
+  });
+
+  test('a click on a card switches to that link', () => {
+    const { sw, vm, open } = setup();
+    open();
+    sw.pick(2);
+    assert.deepEqual(vm.activated, ['c']);
+    assert.equal(sw.isOpen, false);
+  });
+
+  test('a click with a bad number, or when it is closed, does nothing', () => {
+    const { sw, vm, open } = setup();
+    sw.pick(1); // closed
+    open();
+    sw.pick(99); sw.pick(-1); sw.pick('1'); sw.pick(1.5);
+    assert.equal(sw.isOpen, true);
+    assert.deepEqual(vm.activated, []);
+  });
+
+  test('cancel (a click outside the cards) and losing focus close it without switching', () => {
+    const a = setup();
+    a.open();
+    a.sw.cancel();
+    assert.equal(a.sw.isOpen, false);
+    assert.deepEqual(a.vm.activated, []);
+    a.sw.cancel(); // harmless when already closed
+    const b = setup();
+    b.open();
+    b.sw.onBlur();
+    assert.equal(b.sw.isOpen, false);
+    assert.equal(b.overlay.shown, false);
+    assert.deepEqual(b.vm.activated, []);
+  });
+
+  test('while open every key press is used by the switcher, so none reaches the page', () => {
+    const { key, open } = setup();
+    open();
+    assert.equal(key('keyDown', 'x', CTRL), true);
+    assert.equal(key('keyDown', 'Tab', CTRL), true);
+    assert.equal(key('keyDown', 'F5', CTRL), true);
+  });
+
+  test('safety: if the release of Ctrl never arrives, a quiet moment switches anyway', () => {
+    const { sw, vm, timers, fire, key, open } = setup({ activeId: 'a' });
+    open();
+    key('keyDown', 'Tab', CTRL); // -> b
+    assert.equal(timers.live.size, 1);
+    assert.ok([...timers.live.values()][0].ms >= 1500);
+    fire(); // time passes with no key event
+    assert.deepEqual(vm.activated, ['b']);
+    assert.equal(sw.isOpen, false);
+  });
+
+  test('safety timer is restarted by every key event (held Ctrl keeps repeating) and cleared on close', () => {
+    const { sw, timers, key, open } = setup();
+    open();
+    const first = [...timers.live.keys()][0];
+    key('keyDown', 'Control', { control: true, isAutoRepeat: true }); // held Ctrl repeats
+    assert.equal(timers.live.size, 1);
+    assert.notEqual([...timers.live.keys()][0], first);
+    assert.equal(sw.isOpen, true);
+    key('keyDown', 'Escape', CTRL);
+    assert.equal(timers.live.size, 0);
+  });
+
+  test('with fewer than two links there is nothing to switch, so it does not open', () => {
+    const { sw, overlay, key } = setup({ links: [{ id: 'a', name: 'A', url: '', enabled: true, order: 0, groupId: null }] });
+    assert.equal(key('keyDown', 'Tab', CTRL), false);
+    assert.equal(sw.isOpen, false);
+    assert.equal(overlay.shown, false);
+  });
+
+  test('turned off in settings: Ctrl+Tab does nothing', () => {
+    const { sw, key } = setup({ enabled: false });
+    assert.equal(key('keyDown', 'Tab', CTRL), false);
+    assert.equal(sw.isOpen, false);
+  });
+
+  test('on by default (an old settings file without the key still has it on)', () => {
+    assert.equal(defaultSettings().linkSwitcher, true);
+  });
+
+  test('locked app: never opens, and closes if it was open', () => {
+    const { sw, key } = setup({ locked: true });
+    assert.equal(key('keyDown', 'Tab', CTRL), false);
+    assert.equal(sw.isOpen, false);
+    const opened = setup();
+    opened.open();
+    opened.vm.locked = true;
+    assert.equal(opened.key('keyDown', 'Tab', CTRL), false);
+    assert.equal(opened.sw.isOpen, false);
+    assert.equal(opened.overlay.shown, false);
+  });
+});

@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>My Apps link switcher</title>
+<style>
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: transparent;
+    font-family: "Segoe UI", system-ui, sans-serif; user-select: none;
+  }
+  #backdrop {
+    position: fixed; inset: 0; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, .45);
+  }
+  #backdrop.open { display: flex; }
+  #panel {
+    width: min(760px, 86vw); padding: 18px 20px 12px; border-radius: 12px; box-sizing: border-box;
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .55);
+  }
+  #cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-height: 60vh; overflow: hidden; }
+  .card {
+    position: relative; width: 112px; padding: 12px 8px 10px; box-sizing: border-box; cursor: pointer;
+    border: 2px solid transparent; border-radius: 10px; text-align: center; background: var(--card);
+  }
+  .card.selected { border-color: var(--accent); background: var(--card-selected); }
+  .icon {
+    width: 44px; height: 44px; margin: 0 auto 8px; border-radius: 10px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--panel); font-size: 20px; font-weight: 700; color: var(--dim);
+  }
+  .icon img { width: 100%; height: 100%; object-fit: cover; }
+  /* Same status as the sidebar: moon = asleep, green dot = loaded, red number = unread. */
+  .status { position: absolute; top: 7px; left: 8px; display: flex; align-items: center; justify-content: center; min-width: 14px; height: 14px; }
+  .status svg { width: 12px; height: 12px; }
+  .status.asleep { color: var(--dim); }
+  .status.active { color: #3ecf6d; }
+  .status.count {
+    min-width: 18px; height: 16px; padding: 0 5px; border-radius: 8px; box-sizing: border-box;
+    background: #e5484d; color: #fff; font-size: 10px; font-weight: 700; line-height: 16px;
+  }
+  .status.dot { min-width: 10px; width: 10px; height: 10px; border-radius: 5px; background: #e5484d; }
+  .current-tag {
+    position: absolute; top: 6px; right: 6px; padding: 1px 6px; border-radius: 8px;
+    background: var(--accent); color: #fff; font-size: 10px; font-weight: 600; line-height: 14px;
+  }
+  .name {
+    font-size: 12px; line-height: 1.3; word-break: break-word; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  #hint { margin-top: 12px; text-align: center; font-size: 11.5px; color: var(--dim); }
+</style>
+</head>
+<body>
+<div id="backdrop">
+  <div id="panel">
+    <div id="cards"></div>
+    <div id="hint">Keep holding Ctrl · Tab / Shift+Tab to move · let go of Ctrl to switch · Esc to cancel</div>
+  </div>
+</div>
+<script>
+  var THEMES = {
+    dark: { panel: '#1e1f24', card: '#2a2c33', selected: '#34363f', text: '#e8e9ee', dim: '#9a9ca8', border: '#3a3c46' },
+    light: { panel: '#ffffff', card: '#f0f1f5', selected: '#e3e7f4', text: '#1b1c21', dim: '#6a6c78', border: '#d5d7e0' }
+  };
+  var SVG_MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+  var SVG_DOT = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor" stroke="none"/></svg>';
+  var backdrop = document.getElementById('backdrop');
+  var cardsEl = document.getElementById('cards');
+  // A click outside the panel closes it.
+  backdrop.addEventListener('click', function (e) { if (e.target === backdrop) window.switcherBridge.cancel(); });
+
+  function applyTheme(name, accent) {
+    var t = THEMES[name] || THEMES.dark;
+    var s = document.documentElement.style;
+    s.setProperty('--panel', t.panel); s.setProperty('--card', t.card); s.setProperty('--card-selected', t.selected);
+    s.setProperty('--text', t.text); s.setProperty('--dim', t.dim); s.setProperty('--border', t.border);
+    s.setProperty('--accent', /^#[0-9a-fA-F]{3,8}$/.test(accent || '') ? accent : '#3b82f6');
+  }
+
+  function statusEl(item) {
+    var el = document.createElement('div');
+    if (item.asleep) { el.className = 'status asleep'; el.title = 'Asleep'; el.innerHTML = SVG_MOON; }
+    else if (item.count > 0) { el.className = 'status count'; el.textContent = item.count > 9 ? '9+' : String(item.count); }
+    else if (item.activity) { el.className = 'status dot'; }
+    else { el.className = 'status active'; el.title = 'Active'; el.innerHTML = SVG_DOT; }
+    return el;
+  }
+
+  function render(state) {
+    var items = state.items || [];
+    cardsEl.textContent = '';
+    items.forEach(function (item, i) {
+      var card = document.createElement('div');
+      card.className = 'card' + (i === state.index ? ' selected' : '');
+      var icon = document.createElement('div');
+      icon.className = 'icon';
+      if (item.icon) {
+        var img = document.createElement('img');
+        img.src = item.icon;
+        img.alt = '';
+        icon.appendChild(img);
+      } else {
+        icon.textContent = item.letter || '?';
+      }
+      var name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = item.name; // text only, never HTML
+      card.appendChild(icon);
+      card.appendChild(name);
+      card.appendChild(statusEl(item));
+      if (item.current) {
+        var tag = document.createElement('div');
+        tag.className = 'current-tag';
+        tag.textContent = 'Current';
+        card.appendChild(tag);
+      }
+      card.addEventListener('click', function (e) { e.stopPropagation(); window.switcherBridge.pick(i); });
+      cardsEl.appendChild(card);
+    });
+    var selected = cardsEl.querySelector('.card.selected');
+    if (selected) selected.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  // This page has the keyboard focus while it is open. It only reports the keys; the main
+  // process decides what they mean (src/main/linkSwitcher.js). preventDefault keeps Tab from
+  // moving focus around in here.
+  function forwardKey(type, e) {
+    window.switcherBridge.key({ type: type, key: e.key, control: e.ctrlKey, shift: e.shiftKey, alt: e.altKey, meta: e.metaKey, isAutoRepeat: e.repeat });
+  }
+  window.addEventListener('keydown', function (e) { e.preventDefault(); forwardKey('keyDown', e); }, true);
+  window.addEventListener('keyup', function (e) { e.preventDefault(); forwardKey('keyUp', e); }, true);
+
+  // Called by the main process (src/main/switcherOverlay.js).
+  window.__switcher = {
+    show: function (state) { applyTheme(state.theme, state.accent); render(state); backdrop.classList.add('open'); },
+    update: function (state) { render(state); },
+    hide: function () { backdrop.classList.remove('open'); cardsEl.textContent = ''; }
+  };
+</script>
+</body>
+</html>

@@ -14,6 +14,8 @@ const { PeriodicReloadController } = require('./src/main/periodicReload');
 const { TrayController } = require('./src/main/tray');
 const autolaunch = require('./src/main/autolaunch');
 const { attachShortcuts } = require('./src/main/shortcuts');
+const { LinkSwitcher } = require('./src/main/linkSwitcher');
+const { SwitcherOverlay } = require('./src/main/switcherOverlay');
 const { initIpc, recomputeAggregate } = require('./src/main/ipc');
 const { startDevReload } = require('./src/main/devReload');
 const { runStartupCommands } = require('./src/main/startupCommands');
@@ -170,10 +172,36 @@ if (!gotLock) {
       viewManager.focusActive();
     });
 
-    attachShortcuts(mainWindow.webContents, { store, viewManager, mainWindow, appLock });
+    const linkSwitcher = new LinkSwitcher({
+      store,
+      viewManager,
+      overlay: new SwitcherOverlay({
+        mainWindow,
+        store,
+        onPick: (index) => linkSwitcher.pick(index),
+        onCancel: () => linkSwitcher.cancel(),
+        onKey: (input) => linkSwitcher.handleInput(input, 'overlay'),
+      }),
+      // The same status the sidebar shows: asleep (no live page), unread count, or loaded.
+      getStatus: (id) => {
+        const unread = unreadTracker.get(id) || {};
+        return {
+          asleep: !viewManager.isLoaded(id),
+          count: typeof unread.count === 'number' ? unread.count : null,
+          activity: !!unread.activity,
+        };
+      },
+    });
+    ctx.linkSwitcher = linkSwitcher;
+    // If focus leaves the window mid-gesture (Windows can open the Start menu when Win is
+    // released) the key release may never arrive: finish the gesture instead of leaving
+    // the overlay stuck on screen.
+    mainWindow.on('blur', () => linkSwitcher.onBlur());
+
+    attachShortcuts(mainWindow.webContents, { store, viewManager, mainWindow, appLock, linkSwitcher });
     viewManager.on('loaded', (id) => {
       const view = viewManager.getView(id);
-      if (view) attachShortcuts(view.webContents, { store, viewManager, mainWindow, appLock });
+      if (view) attachShortcuts(view.webContents, { store, viewManager, mainWindow, appLock, linkSwitcher });
     });
 
     if (store.getState().settings.showTrayIcon) tray.create();

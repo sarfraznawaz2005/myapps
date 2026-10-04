@@ -19,8 +19,13 @@ function getFlattenedLinkOrder(store) {
 // given webContents (the shell window or any embedded link view — Electron
 // has no menu-bar accelerators since Menu.setApplicationMenu(null), so this
 // is the only place these shortcuts are wired).
-function attachShortcuts(wc, { store, viewManager, mainWindow, appLock }) {
+function attachShortcuts(wc, { store, viewManager, mainWindow, appLock, linkSwitcher }) {
   wc.on('before-input-event', (event, input) => {
+    // Ctrl+Tab link switcher: sees key releases too, and while it is open it uses every key.
+    if (linkSwitcher && linkSwitcher.handleInput(input)) {
+      event.preventDefault();
+      return;
+    }
     if (input.type !== 'keyDown') return;
     const ctrl = input.control || input.meta;
 

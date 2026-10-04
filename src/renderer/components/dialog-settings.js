@@ -161,6 +161,11 @@ function featuresSection(s) {
       <div class="hint">Move the mouse over a picture on any site to see it enlarged next to the mouse. Small icons and pictures that are already full size are skipped. Click anywhere to hide it.</div>
     </div>
     <div class="settings-section">
+      <h3>Switching links</h3>
+      ${checkboxRow('st-link-switcher', 'Ctrl+Tab link switcher', s.linkSwitcher !== false)}
+      <div class="hint">Press Ctrl+Tab to show every link as a card. Keep holding Ctrl and press Tab to move on (Shift+Tab goes back), then let go of Ctrl (or press Enter) to switch. Esc cancels. Works while My Apps is the window in front.</div>
+    </div>
+    <div class="settings-section">
       <h3>Page tools</h3>
       ${checkboxRow('st-scroll-arrows', 'Show scroll up/down arrows on sites', s.scrollArrows)}
     </div>
@@ -559,6 +564,7 @@ function wireSection(s) {
     'st-flash-taskbar': ['flashTaskbar', 'checked'],
     'st-overlay': ['showOverlayIcon', 'checked'],
     'st-scroll-arrows': ['scrollArrows', 'checked'],
+    'st-link-switcher': ['linkSwitcher', 'checked'],
     'st-image-zoom': ['imageZoom', 'checked'],
     'st-overlay-style': ['overlayStyle', 'value'],
     'st-theme': ['theme', 'value'],

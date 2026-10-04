@@ -33,6 +33,7 @@ function defaultSettings() {
     passwordManager: false, // opt-in: save + autofill logins (see passwords.js)
     lockIdleMinutes: 0, // 0 = never auto-lock; only used when a lock password is set
     revealPassword: true, // eye button on password fields to show what was typed
+    linkSwitcher: true, // Ctrl+Tab: pick a link from cards, let go of Ctrl to switch (while My Apps has focus)
     imageZoom: true, // hover a picture on any site to see it enlarged
     confirmDelete: true,
     dnsProvider: 'system', // system | google | cloudflare | custom

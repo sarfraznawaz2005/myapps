@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, Menu, nativeTheme, powerMonitor } = require('electron');
+const { app, Menu, nativeTheme, powerMonitor, screen } = require('electron');
 const { APP_ID } = require('./src/main/constants');
 const { Store } = require('./src/main/store');
 const { AppLock } = require('./src/main/appLock');
@@ -15,6 +15,7 @@ const { TrayController } = require('./src/main/tray');
 const autolaunch = require('./src/main/autolaunch');
 const { attachShortcuts } = require('./src/main/shortcuts');
 const { LinkSwitcher } = require('./src/main/linkSwitcher');
+const { SidebarAutoHide } = require('./src/main/sidebarAutoHide');
 const { SwitcherOverlay } = require('./src/main/switcherOverlay');
 const { initIpc, recomputeAggregate } = require('./src/main/ipc');
 const { startDevReload } = require('./src/main/devReload');
@@ -197,6 +198,17 @@ if (!gotLock) {
     // released) the key release may never arrive: finish the gesture instead of leaving
     // the overlay stuck on screen.
     mainWindow.on('blur', () => linkSwitcher.onBlur());
+
+    // Optional: hide the sidebar until the mouse goes to the far left (setting autoHideSidebar).
+    const sidebarAutoHide = new SidebarAutoHide({
+      store,
+      mainWindow,
+      viewManager,
+      getCursor: () => screen.getCursorScreenPoint(),
+      onChange: (hidden) => { if (!mainWindow.isDestroyed()) mainWindow.webContents.send('shell:sidebar-hidden', hidden); },
+    });
+    ctx.sidebarAutoHide = sidebarAutoHide;
+    sidebarAutoHide.sync();
 
     attachShortcuts(mainWindow.webContents, { store, viewManager, mainWindow, appLock, linkSwitcher });
     viewManager.on('loaded', (id) => {

@@ -35,6 +35,8 @@ function defaultSettings() {
     revealPassword: true, // eye button on password fields to show what was typed
     linkSwitcher: true, // Ctrl+Tab: pick a link from cards, let go of Ctrl to switch (while My Apps has focus)
     imageZoom: true, // hover a picture on any site to see it enlarged
+    blurSidebar: false, // blur link names and icons in the sidebar until the mouse is over it
+    autoHideSidebar: false, // hide the whole sidebar until the mouse goes to the far left edge
     confirmDelete: true,
     dnsProvider: 'system', // system | google | cloudflare | custom
     dnsCustomServer: '', // DNS-over-HTTPS URL, used when dnsProvider is 'custom'

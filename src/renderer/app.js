@@ -169,6 +169,7 @@ async function init() {
   window.myApps.on('shell:open-dialog', onOpenDialog);
   window.myApps.on('shell:permission-prompt', onPermissionPrompt);
   window.myApps.on('shell:find-result', onFindResult);
+  window.myApps.on('shell:sidebar-hidden', (hidden) => sidebar.setAutoHidden(!!hidden));
 
   initLockScreen();
   sidebar.initSidebar();

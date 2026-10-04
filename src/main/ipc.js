@@ -567,6 +567,7 @@ function initIpc(ctx) {
       if (patch.showTrayIcon) tray.create(); else tray.destroy();
     }
     tray.refreshMenu();
+    if (Object.prototype.hasOwnProperty.call(patch, 'autoHideSidebar') && ctx.sidebarAutoHide) ctx.sidebarAutoHide.sync();
     if (Object.prototype.hasOwnProperty.call(patch, 'dnd')) recomputeAggregate(ctx);
     if (Object.prototype.hasOwnProperty.call(patch, 'scrollArrows') || Object.prototype.hasOwnProperty.call(patch, 'highlightKeywords') || Object.prototype.hasOwnProperty.call(patch, 'passwordManager') || Object.prototype.hasOwnProperty.call(patch, 'revealPassword') || Object.prototype.hasOwnProperty.call(patch, 'imageZoom')) broadcastLinkConfig(ctx);
     if (Object.prototype.hasOwnProperty.call(patch, 'dnsProvider') || Object.prototype.hasOwnProperty.call(patch, 'dnsCustomServer')) {
@@ -710,6 +711,8 @@ function initIpc(ctx) {
   }
 
   ipcMain.on(CH.UI_READY, () => {
+    // A reloaded shell starts with the sidebar showing: tell it if it should be hidden.
+    sendToShell(ctx, CH.SHELL_SIDEBAR_HIDDEN, !!viewManager.sidebarHidden);
     const toast = store.takePendingToast();
     if (toast) sendToShell(ctx, CH.SHELL_TOAST, toast);
     if (appLock.isLocked()) {

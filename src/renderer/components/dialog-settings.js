@@ -166,6 +166,13 @@ function featuresSection(s) {
       <div class="hint">Press Ctrl+Tab to show every link as a card. Keep holding Ctrl and press Tab to move on (Shift+Tab goes back), then let go of Ctrl (or press Enter) to switch. Esc cancels. Works while My Apps is the window in front.</div>
     </div>
     <div class="settings-section">
+      <h3>Sidebar</h3>
+      ${checkboxRow('st-blur-sidebar', 'Blur links in the sidebar', s.blurSidebar === true)}
+      <div class="hint">Link names and icons are blurred. Move the mouse over the sidebar to see them. Move it away and they blur again.</div>
+      ${checkboxRow('st-autohide-sidebar', 'Hide the sidebar until the mouse goes far left', s.autoHideSidebar === true)}
+      <div class="hint">The sidebar goes out of sight and pages use the full width. Move the mouse to the far left edge of the window to bring it back. It hides again when the mouse moves away. This is separate from the collapse button.</div>
+    </div>
+    <div class="settings-section">
       <h3>Page tools</h3>
       ${checkboxRow('st-scroll-arrows', 'Show scroll up/down arrows on sites', s.scrollArrows)}
     </div>
@@ -566,6 +573,8 @@ function wireSection(s) {
     'st-scroll-arrows': ['scrollArrows', 'checked'],
     'st-link-switcher': ['linkSwitcher', 'checked'],
     'st-image-zoom': ['imageZoom', 'checked'],
+    'st-blur-sidebar': ['blurSidebar', 'checked'],
+    'st-autohide-sidebar': ['autoHideSidebar', 'checked'],
     'st-overlay-style': ['overlayStyle', 'value'],
     'st-theme': ['theme', 'value'],
     'st-default-hib': ['defaultHibernate', 'value'],

@@ -96,6 +96,7 @@ const CH = {
   SHELL_PERMISSION_PROMPT: 'shell:permission-prompt',
   SHELL_FIND_RESULT: 'shell:find-result',
   SHELL_LOCK: 'shell:lock',
+  SHELL_SIDEBAR_HIDDEN: 'shell:sidebar-hidden',
 
   // Link preload -> main
   LINK_BOOTSTRAP: 'link:bootstrap',

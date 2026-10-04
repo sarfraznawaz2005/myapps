@@ -10,6 +10,26 @@
   grid-template-columns: 76px 1fr;
 }
 
+/* Setting "hide the sidebar until the mouse goes far left": no column at all while hidden. */
+#shell.autohidden {
+  grid-template-columns: 0 1fr;
+}
+#shell.autohidden #sidebar {
+  visibility: hidden;
+  overflow: hidden;
+}
+
+/* Setting "blur links": names and icons are blurred until the mouse is over the sidebar. */
+#sidebar.blur-links .link-row .link-name,
+#sidebar.blur-links .link-row .link-favicon {
+  filter: blur(5px);
+  transition: filter .15s;
+}
+#sidebar.blur-links:hover .link-row .link-name,
+#sidebar.blur-links:hover .link-row .link-favicon {
+  filter: none;
+}
+
 /* ---------- Sidebar ---------- */
 
 #sidebar {

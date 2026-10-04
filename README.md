@@ -248,6 +248,23 @@ Settings → Features → "Ctrl+Tab link switcher" turns it off (on by default).
   (PowerShell: `$env:MYAPPS_KEYDBG=1; npm start`): Ctrl, Tab, arrow, Enter and
   Esc events are printed as `[switcher-keys]` lines. Nothing else is logged.
 
+## Sidebar privacy options
+
+Both are in Settings → Features → Sidebar, and both are off by default.
+
+- **Blur links in the sidebar** — link names and icons are blurred. They clear
+  while the mouse is over the sidebar and blur again when it leaves. Unread
+  counts and status icons stay readable.
+- **Hide the sidebar until the mouse goes far left** — the sidebar goes out of
+  sight and the pages use the full window width. Move the mouse to the far left
+  edge of the window to bring it back; it hides again about a third of a second
+  after the mouse moves away (and when the window loses focus, or stays open
+  while a dialog is open). This is separate from the collapse button, and they
+  work together: a collapsed sidebar comes back collapsed. The mouse is read
+  from the screen, not from the page, because a page covers the left edge while
+  the sidebar is hidden. While the sidebar is shown the pages move over to make
+  room for it (the same as with a normal sidebar).
+
 ## Startup commands
 
 Settings → Commands runs any shell command in the background, non-blocking,

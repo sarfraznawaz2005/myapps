@@ -270,8 +270,14 @@ function pushLayout() {
   });
 }
 
+// Auto-hide setting: main says when the sidebar is out of sight (it also moves the pages).
+export function setAutoHidden(hidden) {
+  shellEl.classList.toggle('autohidden', hidden);
+}
+
 export function applySidebarWidth() {
   const { sidebarWidth, sidebarCollapsed, sidebarFooterOpen } = getState().ui;
+  sidebarEl.classList.toggle('blur-links', getState().settings.blurSidebar === true);
   shellEl.style.setProperty('--sw', `${sidebarWidth}px`);
   shellEl.classList.toggle('collapsed', !!sidebarCollapsed);
   sidebarEl.classList.toggle('collapsed-mode', !!sidebarCollapsed);

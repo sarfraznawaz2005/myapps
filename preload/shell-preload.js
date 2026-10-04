@@ -31,7 +31,7 @@ const ON_CHANNELS = new Set([
   'shell:state', 'shell:unread', 'shell:aggregate', 'shell:nav',
   'shell:link-status', 'shell:favicon', 'shell:audio', 'shell:active',
   'shell:toast', 'shell:open-dialog', 'shell:permission-prompt', 'shell:find-result',
-  'shell:lock',
+  'shell:lock', 'shell:sidebar-hidden',
 ]);
 
 // When the app starts locked, main passes --app-locked so the shell is

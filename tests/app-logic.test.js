@@ -789,3 +789,142 @@ describe('Ctrl+Tab link switcher (LinkSwitcher)', () => {
     assert.equal(opened.overlay.shown, false);
   });
 });
+
+describe('sidebar auto-hide (hide until the mouse goes far left)', () => {
+  const { SidebarAutoHide, HIDE_DELAY_MS } = require('../src/main/sidebarAutoHide');
+
+  function setup({ enabled = true, sidebarWidth = 240, collapsed = false } = {}) {
+    const settings = { autoHideSidebar: enabled };
+    const ui = { sidebarWidth, sidebarCollapsed: collapsed };
+    const store = { getState: () => ({ settings, ui, links: [] }) };
+    const win = {
+      focused: true, visible: true, minimized: false,
+      isDestroyed: () => false, isVisible: () => win.visible, isMinimized: () => win.minimized, isFocused: () => win.focused,
+      getContentBounds: () => ({ x: 100, y: 50, width: 1200, height: 800 }),
+      getBounds: () => ({ x: 100, y: 50, width: 1200, height: 800 }),
+      setBounds() {},
+    };
+    const vm = new ViewManager({ mainWindow: win, store });
+    const views = [];
+    vm.views.set('A', { setBounds: (b) => views.push(b), webContents: { isDestroyed: () => true } });
+    const cursor = { x: 600, y: 400 };
+    const changes = [];
+    const hide = new SidebarAutoHide({ store, mainWindow: win, viewManager: vm, getCursor: () => cursor, onChange: (h) => changes.push(h) });
+    let clock = 1000;
+    hide.now = () => clock;
+    return { hide, vm, win, cursor, changes, views, settings, advance: (ms) => { clock += ms; } };
+  }
+
+  test('off by default', () => {
+    assert.equal(defaultSettings().autoHideSidebar, false);
+    assert.equal(defaultSettings().blurSidebar, false);
+  });
+
+  test('turning it on hides the sidebar and gives the pages the full width', () => {
+    const t = setup();
+    t.hide.sync();
+    assert.equal(t.hide.hidden, true);
+    assert.equal(t.vm.sidebarHidden, true);
+    assert.deepEqual(t.changes, [true]);
+    const last = t.views[t.views.length - 1];
+    assert.equal(last.x, 0);
+    assert.equal(last.width, 1200);
+    t.hide.stop();
+  });
+
+  test('turning it off shows the sidebar again at its normal width', () => {
+    const t = setup();
+    t.hide.sync();
+    t.settings.autoHideSidebar = false;
+    t.hide.sync();
+    assert.equal(t.vm.sidebarHidden, false);
+    assert.equal(t.hide.timer, null);
+    const last = t.views[t.views.length - 1];
+    assert.equal(last.x, 240);
+    assert.equal(last.width, 960);
+  });
+
+  test('the far left edge shows it; elsewhere does not', () => {
+    const t = setup();
+    t.hide.sync();
+    t.cursor.x = 100 + 30; t.cursor.y = 300; // 30px in: not the edge
+    t.hide.tick();
+    assert.equal(t.hide.hidden, true);
+    t.cursor.x = 100 + 2;
+    t.hide.tick();
+    assert.equal(t.hide.hidden, false);
+    assert.equal(t.views[t.views.length - 1].x, 240);
+    t.hide.stop();
+  });
+
+  test('a mouse above or below the window does not show it', () => {
+    const t = setup();
+    t.hide.sync();
+    t.cursor.x = 101; t.cursor.y = 20; // above the window
+    t.hide.tick();
+    assert.equal(t.hide.hidden, true);
+    t.hide.stop();
+  });
+
+  test('it hides again only after the mouse has been away a moment', () => {
+    const t = setup();
+    t.hide.sync();
+    t.cursor.x = 101; t.cursor.y = 300;
+    t.hide.tick(); // shown
+    t.cursor.x = 100 + 600; // away from the sidebar
+    t.hide.tick(); // starts the wait
+    assert.equal(t.hide.hidden, false);
+    t.advance(HIDE_DELAY_MS - 50);
+    t.hide.tick();
+    assert.equal(t.hide.hidden, false);
+    t.cursor.x = 100 + 100; // back over the sidebar: wait starts over
+    t.hide.tick();
+    t.cursor.x = 100 + 600;
+    t.hide.tick();
+    t.advance(HIDE_DELAY_MS - 50);
+    t.hide.tick();
+    assert.equal(t.hide.hidden, false);
+    t.advance(100);
+    t.hide.tick();
+    assert.equal(t.hide.hidden, true);
+    t.hide.stop();
+  });
+
+  test('it stays shown while a dialog is open', () => {
+    const t = setup();
+    t.hide.sync();
+    t.cursor.x = 101; t.cursor.y = 300;
+    t.hide.tick();
+    t.vm.modalOpen = true;
+    t.cursor.x = 100 + 700;
+    t.hide.tick();
+    t.advance(HIDE_DELAY_MS * 3);
+    t.hide.tick();
+    assert.equal(t.hide.hidden, false);
+    t.hide.stop();
+  });
+
+  test('a shown sidebar hides when the window loses focus; a hidden one stays hidden', () => {
+    const t = setup();
+    t.hide.sync();
+    t.cursor.x = 101; t.cursor.y = 300;
+    t.hide.tick();
+    assert.equal(t.hide.hidden, false);
+    t.win.focused = false;
+    t.hide.tick();
+    assert.equal(t.hide.hidden, true);
+    t.cursor.x = 101;
+    t.hide.tick(); // still not focused: no reveal
+    assert.equal(t.hide.hidden, true);
+    t.hide.stop();
+  });
+
+  test('the shown width follows the collapse button', () => {
+    const t = setup({ collapsed: true });
+    t.hide.sync();
+    t.cursor.x = 101; t.cursor.y = 300;
+    t.hide.tick();
+    assert.equal(t.views[t.views.length - 1].x, 76);
+    t.hide.stop();
+  });
+});

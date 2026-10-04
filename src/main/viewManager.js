@@ -79,6 +79,7 @@ class ViewManager extends EventEmitter {
     this.views = new Map(); // linkId -> WebContentsView
     this.activeId = null;
     this.modalOpen = false;
+    this.sidebarHidden = false; // auto-hide setting: the sidebar is out of sight (see sidebarAutoHide.js)
     // App lock: while true no view is created or shown (see setLocked).
     this.locked = false;
     this._hiddenPopups = [];
@@ -416,11 +417,22 @@ class ViewManager extends EventEmitter {
     view.setVisible(true);
   }
 
+  // The width the sidebar has when it is showing (narrow when collapsed).
+  sidebarWidth() {
+    const { ui } = this.store.getState();
+    return ui.sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : ui.sidebarWidth;
+  }
+
+  setSidebarHidden(hidden) {
+    if (this.sidebarHidden === !!hidden) return;
+    this.sidebarHidden = !!hidden;
+    this.layout();
+  }
+
   layout() {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
     const cb = this.mainWindow.getContentBounds();
-    const { ui } = this.store.getState();
-    const sidebarWidth = ui.sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : ui.sidebarWidth;
+    const sidebarWidth = this.sidebarHidden ? 0 : this.sidebarWidth();
     const width = Math.max(0, cb.width - sidebarWidth);
     const height = Math.max(0, cb.height - TOOLBAR_HEIGHT);
     for (const [id, view] of this.views) {

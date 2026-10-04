@@ -5,7 +5,8 @@
 // completely so the page can use the whole window width.
 //
 //   hidden   the pages fill the whole window width; nothing of the sidebar shows
-//   shown    the sidebar is back at its normal width (the pages make room for it)
+//   shown    a copy of the sidebar floats over the left edge of the pages
+//            (sidebarOverlay.js); the pages keep their size and are not redrawn
 //
 // The mouse is read from the screen itself (not from page events), because a page
 // covers the left edge of the window while the sidebar is hidden and gets the mouse.
@@ -20,14 +21,21 @@ const LEAVE_MARGIN_PX = 24; // how far right of the sidebar the mouse must be to
 const HIDE_DELAY_MS = 350;
 
 class SidebarAutoHide {
-  // getCursor() -> { x, y } in screen pixels. onChange(hidden) tells the window to redraw.
-  constructor({ store, mainWindow, viewManager, getCursor, onChange }) {
+  // getCursor() -> { x, y } in screen pixels. overlay draws the floating sidebar:
+  // create() / show(width) / hide() / destroy(). onActiveChange(on) tells the main
+  // window the setting is on or off. isBlocked() is true while something else is on
+  // top (the Ctrl+Tab switcher).
+  constructor({ store, mainWindow, viewManager, overlay, getCursor, onActiveChange, onHidden, isBlocked }) {
     this.store = store;
     this.mainWindow = mainWindow;
     this.viewManager = viewManager;
+    this.overlay = overlay;
     this.getCursor = getCursor;
-    this.onChange = onChange || (() => {});
-    this.hidden = false;
+    this.onActiveChange = onActiveChange || (() => {});
+    this.onHidden = onHidden || (() => {}); // the floating sidebar went away: give the page the keyboard
+    this.isBlocked = isBlocked || (() => false);
+    this.active = false; // the setting is on
+    this.shown = false; // the floating sidebar is on screen
     this.timer = null;
     this.awaySince = 0;
     this.now = () => Date.now(); // replaceable in tests
@@ -39,38 +47,51 @@ class SidebarAutoHide {
 
   // Call after the setting may have changed (and once at start).
   sync() {
-    if (this.enabled()) {
-      this.setHidden(true);
+    const on = this.enabled();
+    if (on === this.active) return;
+    this.active = on;
+    if (on) {
+      this.overlay.create();
+      this.viewManager.setSidebarHidden(true); // pages use the whole width
       if (!this.timer) this.timer = setInterval(() => this.tick(), POLL_MS);
     } else {
-      if (this.timer) { clearInterval(this.timer); this.timer = null; }
-      this.setHidden(false);
+      this.stop();
+      this.hide();
+      this.overlay.destroy();
+      this.viewManager.setSidebarHidden(false);
     }
+    this.onActiveChange(on);
   }
 
   stop() {
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
   }
 
-  setHidden(hidden) {
+  show() {
     this.awaySince = 0;
-    if (this.hidden === hidden && this.viewManager.sidebarHidden === hidden) return;
-    this.hidden = hidden;
-    this.viewManager.setSidebarHidden(hidden);
-    this.onChange(hidden);
+    this.shown = true;
+    this.overlay.show(this.viewManager.sidebarWidth());
   }
 
-  // The width the sidebar has while it is shown.
-  shownWidth() {
-    return this.viewManager.sidebarWidth();
+  hide() {
+    this.awaySince = 0;
+    if (!this.shown) return;
+    this.shown = false;
+    if (this.overlay.hide()) this.onHidden();
+  }
+
+  // Used when a click in the floating sidebar needs a dialog of the main window.
+  hideNow() {
+    this.hide();
   }
 
   tick() {
     const win = this.mainWindow;
-    if (!this.enabled() || !win || win.isDestroyed()) return;
-    // Not in front: show nothing new. A shown sidebar goes away when the window loses focus.
-    if (!win.isVisible() || win.isMinimized() || !win.isFocused()) {
-      if (!this.hidden) this.setHidden(true);
+    if (!this.active || !win || win.isDestroyed()) return;
+    // Not in front, a dialog is open, the app is locked, or the switcher is up: show nothing.
+    if (!win.isVisible() || win.isMinimized() || !win.isFocused()
+      || this.viewManager.modalOpen || this.viewManager.locked || this.isBlocked()) {
+      this.hide();
       return;
     }
     const cursor = this.getCursor();
@@ -79,16 +100,20 @@ class SidebarAutoHide {
     const y = cursor.y - box.y;
     const insideHeight = y >= 0 && y < box.height;
 
-    if (this.hidden) {
-      if (insideHeight && x >= -EDGE_SLACK_PX && x <= EDGE_PX) this.setHidden(false);
+    if (!this.shown) {
+      if (insideHeight && x >= -EDGE_SLACK_PX && x <= EDGE_PX) this.show();
       return;
     }
 
-    // Shown. Stay while a dialog is open or the mouse is over the sidebar.
-    const over = insideHeight && x >= -EDGE_SLACK_PX && x <= this.shownWidth() + LEAVE_MARGIN_PX;
-    if (over || this.viewManager.modalOpen) { this.awaySince = 0; return; }
+    const width = this.viewManager.sidebarWidth();
+    const over = insideHeight && x >= -EDGE_SLACK_PX && x <= width + LEAVE_MARGIN_PX;
+    if (over) {
+      this.awaySince = 0;
+      this.overlay.show(width); // follows a collapse / expand and a window resize; stays on top
+      return;
+    }
     if (!this.awaySince) { this.awaySince = this.now(); return; }
-    if (this.now() - this.awaySince >= HIDE_DELAY_MS) this.setHidden(true);
+    if (this.now() - this.awaySince >= HIDE_DELAY_MS) this.hide();
   }
 }
 

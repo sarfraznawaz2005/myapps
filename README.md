@@ -258,12 +258,16 @@ Both are in Settings → Features → Sidebar, and both are off by default.
 - **Hide the sidebar until the mouse goes far left** — the sidebar goes out of
   sight and the pages use the full window width. Move the mouse to the far left
   edge of the window to bring it back; it hides again about a third of a second
-  after the mouse moves away (and when the window loses focus, or stays open
-  while a dialog is open). This is separate from the collapse button, and they
-  work together: a collapsed sidebar comes back collapsed. The mouse is read
+  after the mouse moves away (and at once when the window loses focus, a dialog
+  opens, the app locks or the Ctrl+Tab switcher shows). This is separate from
+  the collapse button, and they work together: a collapsed sidebar comes back
+  collapsed. The sidebar floats over the page, so the page keeps its size and is
+  not redrawn. It is a second copy of the sidebar page
+  (`index.html?sidebar=1`, `src/main/sidebarOverlay.js`) that gets the same state
+  as the main window. Buttons that need a dialog (Add Link, Add Group, Settings,
+  edit group) hide it and open the dialog in the main window. The mouse is read
   from the screen, not from the page, because a page covers the left edge while
-  the sidebar is hidden. While the sidebar is shown the pages move over to make
-  room for it (the same as with a normal sidebar).
+  the sidebar is hidden.
 
 ## Startup commands
 

@@ -801,130 +801,154 @@ describe('sidebar auto-hide (hide until the mouse goes far left)', () => {
       focused: true, visible: true, minimized: false,
       isDestroyed: () => false, isVisible: () => win.visible, isMinimized: () => win.minimized, isFocused: () => win.focused,
       getContentBounds: () => ({ x: 100, y: 50, width: 1200, height: 800 }),
-      getBounds: () => ({ x: 100, y: 50, width: 1200, height: 800 }),
-      setBounds() {},
     };
     const vm = new ViewManager({ mainWindow: win, store });
     const views = [];
     vm.views.set('A', { setBounds: (b) => views.push(b), webContents: { isDestroyed: () => true } });
+    const overlay = {
+      created: false, shownWidth: null, hadFocus: false,
+      create() { this.created = true; },
+      destroy() { this.created = false; this.shownWidth = null; },
+      show(w) { this.shownWidth = w; },
+      hide() { const f = this.hadFocus; this.shownWidth = null; return f; },
+    };
     const cursor = { x: 600, y: 400 };
-    const changes = [];
-    const hide = new SidebarAutoHide({ store, mainWindow: win, viewManager: vm, getCursor: () => cursor, onChange: (h) => changes.push(h) });
+    const log = { active: [], hidden: 0 };
+    let blocked = false;
+    const hide = new SidebarAutoHide({
+      store, mainWindow: win, viewManager: vm, overlay, getCursor: () => cursor,
+      onActiveChange: (on) => log.active.push(on), onHidden: () => { log.hidden++; }, isBlocked: () => blocked,
+    });
     let clock = 1000;
     hide.now = () => clock;
-    return { hide, vm, win, cursor, changes, views, settings, advance: (ms) => { clock += ms; } };
+    return { hide, vm, win, cursor, overlay, log, views, settings, advance: (ms) => { clock += ms; }, block: (b) => { blocked = b; } };
   }
+  const edge = (t) => { t.cursor.x = 102; t.cursor.y = 300; };
+  const away = (t) => { t.cursor.x = 100 + 700; t.cursor.y = 300; };
 
   test('off by default', () => {
     assert.equal(defaultSettings().autoHideSidebar, false);
     assert.equal(defaultSettings().blurSidebar, false);
   });
 
-  test('turning it on hides the sidebar and gives the pages the full width', () => {
+  test('turning it on gives the pages the whole width and shows nothing yet', () => {
     const t = setup();
     t.hide.sync();
-    assert.equal(t.hide.hidden, true);
-    assert.equal(t.vm.sidebarHidden, true);
-    assert.deepEqual(t.changes, [true]);
+    assert.equal(t.overlay.created, true);
+    assert.equal(t.hide.shown, false);
+    assert.deepEqual(t.log.active, [true]);
     const last = t.views[t.views.length - 1];
     assert.equal(last.x, 0);
     assert.equal(last.width, 1200);
     t.hide.stop();
   });
 
-  test('turning it off shows the sidebar again at its normal width', () => {
+  test('turning it off removes the floating sidebar and restores the normal layout', () => {
     const t = setup();
     t.hide.sync();
     t.settings.autoHideSidebar = false;
     t.hide.sync();
-    assert.equal(t.vm.sidebarHidden, false);
+    assert.equal(t.overlay.created, false);
     assert.equal(t.hide.timer, null);
+    assert.deepEqual(t.log.active, [true, false]);
     const last = t.views[t.views.length - 1];
     assert.equal(last.x, 240);
     assert.equal(last.width, 960);
   });
 
-  test('the far left edge shows it; elsewhere does not', () => {
+  test('syncing twice with the same setting does nothing more', () => {
+    const t = setup();
+    t.hide.sync(); t.hide.sync();
+    assert.deepEqual(t.log.active, [true]);
+    t.hide.stop();
+  });
+
+  test('the far left edge floats the sidebar over the pages without moving them', () => {
     const t = setup();
     t.hide.sync();
-    t.cursor.x = 100 + 30; t.cursor.y = 300; // 30px in: not the edge
+    const before = t.views.length;
+    t.cursor.x = 130; t.cursor.y = 300; // 30px in: not the edge
     t.hide.tick();
-    assert.equal(t.hide.hidden, true);
-    t.cursor.x = 100 + 2;
+    assert.equal(t.hide.shown, false);
+    edge(t);
     t.hide.tick();
-    assert.equal(t.hide.hidden, false);
-    assert.equal(t.views[t.views.length - 1].x, 240);
+    assert.equal(t.hide.shown, true);
+    assert.equal(t.overlay.shownWidth, 240);
+    assert.equal(t.views.length, before); // pages were not laid out again
     t.hide.stop();
   });
 
   test('a mouse above or below the window does not show it', () => {
     const t = setup();
     t.hide.sync();
-    t.cursor.x = 101; t.cursor.y = 20; // above the window
+    t.cursor.x = 101; t.cursor.y = 20;
     t.hide.tick();
-    assert.equal(t.hide.hidden, true);
+    assert.equal(t.hide.shown, false);
     t.hide.stop();
   });
 
   test('it hides again only after the mouse has been away a moment', () => {
     const t = setup();
     t.hide.sync();
-    t.cursor.x = 101; t.cursor.y = 300;
-    t.hide.tick(); // shown
-    t.cursor.x = 100 + 600; // away from the sidebar
-    t.hide.tick(); // starts the wait
-    assert.equal(t.hide.hidden, false);
-    t.advance(HIDE_DELAY_MS - 50);
-    t.hide.tick();
-    assert.equal(t.hide.hidden, false);
-    t.cursor.x = 100 + 100; // back over the sidebar: wait starts over
-    t.hide.tick();
-    t.cursor.x = 100 + 600;
-    t.hide.tick();
-    t.advance(HIDE_DELAY_MS - 50);
-    t.hide.tick();
-    assert.equal(t.hide.hidden, false);
-    t.advance(100);
-    t.hide.tick();
-    assert.equal(t.hide.hidden, true);
+    edge(t); t.hide.tick();
+    away(t); t.hide.tick(); // starts the wait
+    t.advance(HIDE_DELAY_MS - 50); t.hide.tick();
+    assert.equal(t.hide.shown, true);
+    t.cursor.x = 200; t.hide.tick(); // back over the sidebar: the wait starts over
+    away(t); t.hide.tick();
+    t.advance(HIDE_DELAY_MS - 50); t.hide.tick();
+    assert.equal(t.hide.shown, true);
+    t.advance(100); t.hide.tick();
+    assert.equal(t.hide.shown, false);
+    assert.equal(t.overlay.shownWidth, null);
     t.hide.stop();
   });
 
-  test('it stays shown while a dialog is open', () => {
+  test('hiding gives the keyboard back to the page when the sidebar had it', () => {
     const t = setup();
     t.hide.sync();
-    t.cursor.x = 101; t.cursor.y = 300;
-    t.hide.tick();
-    t.vm.modalOpen = true;
-    t.cursor.x = 100 + 700;
-    t.hide.tick();
-    t.advance(HIDE_DELAY_MS * 3);
-    t.hide.tick();
-    assert.equal(t.hide.hidden, false);
+    edge(t); t.hide.tick();
+    t.overlay.hadFocus = true;
+    t.hide.hideNow();
+    assert.equal(t.log.hidden, 1);
     t.hide.stop();
   });
 
-  test('a shown sidebar hides when the window loses focus; a hidden one stays hidden', () => {
+  test('a dialog, the lock screen or the Ctrl+Tab switcher hide it and stop it showing', () => {
     const t = setup();
     t.hide.sync();
-    t.cursor.x = 101; t.cursor.y = 300;
-    t.hide.tick();
-    assert.equal(t.hide.hidden, false);
-    t.win.focused = false;
-    t.hide.tick();
-    assert.equal(t.hide.hidden, true);
-    t.cursor.x = 101;
-    t.hide.tick(); // still not focused: no reveal
-    assert.equal(t.hide.hidden, true);
+    edge(t); t.hide.tick();
+    t.vm.modalOpen = true; t.hide.tick();
+    assert.equal(t.hide.shown, false);
+    edge(t); t.hide.tick();
+    assert.equal(t.hide.shown, false);
+    t.vm.modalOpen = false;
+    t.block(true); edge(t); t.hide.tick();
+    assert.equal(t.hide.shown, false);
+    t.block(false);
+    t.vm.locked = true; edge(t); t.hide.tick();
+    assert.equal(t.hide.shown, false);
+    t.vm.locked = false; edge(t); t.hide.tick();
+    assert.equal(t.hide.shown, true);
     t.hide.stop();
   });
 
-  test('the shown width follows the collapse button', () => {
+  test('it hides when the window loses focus and stays hidden until it is back', () => {
+    const t = setup();
+    t.hide.sync();
+    edge(t); t.hide.tick();
+    t.win.focused = false; t.hide.tick();
+    assert.equal(t.hide.shown, false);
+    edge(t); t.hide.tick();
+    assert.equal(t.hide.shown, false);
+    t.hide.stop();
+  });
+
+  test('the floating width follows the collapse button', () => {
     const t = setup({ collapsed: true });
     t.hide.sync();
-    t.cursor.x = 101; t.cursor.y = 300;
-    t.hide.tick();
-    assert.equal(t.views[t.views.length - 1].x, 76);
+    edge(t); t.hide.tick();
+    assert.equal(t.overlay.shownWidth, 76);
     t.hide.stop();
   });
 });

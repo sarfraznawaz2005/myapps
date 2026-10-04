@@ -16,6 +16,7 @@ const autolaunch = require('./src/main/autolaunch');
 const { attachShortcuts } = require('./src/main/shortcuts');
 const { LinkSwitcher } = require('./src/main/linkSwitcher');
 const { SidebarAutoHide } = require('./src/main/sidebarAutoHide');
+const { SidebarOverlay } = require('./src/main/sidebarOverlay');
 const { SwitcherOverlay } = require('./src/main/switcherOverlay');
 const { initIpc, recomputeAggregate } = require('./src/main/ipc');
 const { startDevReload } = require('./src/main/devReload');
@@ -204,8 +205,12 @@ if (!gotLock) {
       store,
       mainWindow,
       viewManager,
+      overlay: new SidebarOverlay({ mainWindow }),
       getCursor: () => screen.getCursorScreenPoint(),
-      onChange: (hidden) => { if (!mainWindow.isDestroyed()) mainWindow.webContents.send('shell:sidebar-hidden', hidden); },
+      // The main window gives up its own sidebar column while the setting is on.
+      onActiveChange: (on) => { if (!mainWindow.isDestroyed()) mainWindow.webContents.send('shell:sidebar-hidden', on); },
+      onHidden: () => viewManager.focusActive(),
+      isBlocked: () => linkSwitcher.isOpen,
     });
     ctx.sidebarAutoHide = sidebarAutoHide;
     sidebarAutoHide.sync();

@@ -660,6 +660,14 @@ function initIpc(ctx) {
     viewManager.layout();
   });
 
+  // The floating sidebar (sidebarOverlay.js) cannot show dialogs: it asks the main window to.
+  const SIDEBAR_ACTIONS = new Set(['add-link', 'add-group', 'edit-group', 'settings']);
+  ipcMain.on(CH.UI_SIDEBAR_ACTION, (_event, type, id) => {
+    if (!SIDEBAR_ACTIONS.has(type) || (id != null && typeof id !== 'string')) return;
+    if (ctx.sidebarAutoHide) ctx.sidebarAutoHide.hideNow();
+    sendToShell(ctx, CH.SHELL_OPEN_DIALOG, { type, groupId: id || null });
+  });
+
   ipcMain.on(CH.UI_MODAL_OPEN, (_event, isOpen) => {
     viewManager.setModalOpen(!!isOpen);
     if (!isOpen) {

@@ -1,10 +1,15 @@
-import { getState, setState, mergeMapField, getLink } from './state.js';
+import { getState, setState, mergeMapField, getLink, getGroup } from './state.js';
 import * as sidebar from './components/sidebar.js';
-import * as toolbar from './components/toolbar.js';
+import * as realToolbar from './components/toolbar.js';
 import { showToast } from './components/toast.js';
 import { openLinkDialog } from './components/dialog-link.js';
+import { openGroupDialog } from './components/dialog-group.js';
 import { openPermissionPrompt } from './components/dialog-permission.js';
 import { initLockScreen, setLocked } from './components/lock-screen.js';
+
+// The floating sidebar (sidebar.sidebarOnly) has no toolbar, lock screen or dialogs of its own.
+const toolbar = sidebar.sidebarOnly ? new Proxy({}, { get: () => () => {} }) : realToolbar;
+if (sidebar.sidebarOnly) document.documentElement.classList.add('sidebar-only');
 
 const contentEmpty = document.getElementById('content-empty');
 const quickSwitch = document.getElementById('quick-switch');
@@ -101,6 +106,10 @@ function onOpenDialog(payload) {
   else if (payload.type === 'quick-switch') openQuickSwitch();
   else if (payload.type === 'find') toolbar.openFindBar();
   else if (payload.type === 'edit-link') { const link = getLink(payload.linkId); if (link) openLinkDialog(link); }
+  else if (payload.type === 'add-link') openLinkDialog(null);
+  else if (payload.type === 'add-group') openGroupDialog(null);
+  else if (payload.type === 'edit-group') { const group = getGroup(payload.groupId); if (group) openGroupDialog(group); }
+  else if (payload.type === 'settings') sidebar.openSettings();
   else if (payload.type === 'picked-element') {
     window.dispatchEvent(new CustomEvent('__myapps-picked-element', { detail: payload }));
   }
@@ -171,15 +180,15 @@ async function init() {
   window.myApps.on('shell:find-result', onFindResult);
   window.myApps.on('shell:sidebar-hidden', (hidden) => sidebar.setAutoHidden(!!hidden));
 
-  initLockScreen();
+  if (!sidebar.sidebarOnly) initLockScreen();
   sidebar.initSidebar();
   toolbar.initToolbar();
 
   const initial = await window.myApps.invoke('app:get-state');
-  setLocked(initial.lock);
+  if (!sidebar.sidebarOnly) setLocked(initial.lock);
   onShellState(initial);
 
-  window.myApps.send('ui:ready');
+  if (!sidebar.sidebarOnly) window.myApps.send('ui:ready'); // the main window only
 }
 
 init();

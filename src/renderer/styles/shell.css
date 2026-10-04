@@ -19,6 +19,13 @@
   overflow: hidden;
 }
 
+/* The floating copy of the sidebar (index.html?sidebar=1): the sidebar and nothing else. */
+html.sidebar-only #shell { grid-template-columns: 1fr !important; }
+html.sidebar-only #content-col,
+html.sidebar-only #sidebar-resizer,
+html.sidebar-only #quick-switch,
+html.sidebar-only #lock-screen { display: none !important; }
+
 /* Setting "blur links": names and icons are blurred until the mouse is over the sidebar. */
 #sidebar.blur-links .link-row .link-name,
 #sidebar.blur-links .link-row .link-favicon {

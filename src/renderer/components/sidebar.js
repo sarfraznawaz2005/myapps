@@ -17,6 +17,14 @@ const btnSettings = document.getElementById('btn-settings');
 const btnLock = document.getElementById('btn-lock');
 const btnEmptyAdd = document.getElementById('btn-empty-add');
 
+// The floating sidebar (main/sidebarOverlay.js) is this same page started with ?sidebar=1.
+// It shows only the sidebar and cannot show dialogs: it asks the main window to.
+export const sidebarOnly = new URLSearchParams(window.location.search).get('sidebar') === '1';
+function askMainWindow(type, id, openHere) {
+  if (sidebarOnly) window.myApps.send('ui:sidebar-action', type, id || null);
+  else openHere();
+}
+
 let dragging = null; // { type: 'link'|'group', id }
 const UNGROUPED_ID = '__ungrouped__';
 
@@ -191,7 +199,7 @@ function wireRowEvents() {
     el.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       if (el.dataset.groupId === UNGROUPED_ID) return;
-      openGroupDialog(getGroup(el.dataset.groupId));
+      askMainWindow('edit-group', el.dataset.groupId, () => openGroupDialog(getGroup(el.dataset.groupId)));
     });
     el.addEventListener('dragover', (e) => {
       if (dragging && dragging.type === 'link') { e.preventDefault(); el.classList.add('dragover'); }
@@ -311,6 +319,11 @@ function initResizer() {
   });
 }
 
+export async function openSettings() {
+  const { openSettingsDialog } = await import('./dialog-settings.js');
+  openSettingsDialog();
+}
+
 export function initSidebar() {
   initResizer();
 
@@ -343,11 +356,8 @@ export function initSidebar() {
     }
   });
 
-  btnAddLink.addEventListener('click', () => openLinkDialog(null));
-  btnAddGroup.addEventListener('click', () => openGroupDialog(null));
-  btnEmptyAdd.addEventListener('click', () => openLinkDialog(null));
-  btnSettings.addEventListener('click', async () => {
-    const { openSettingsDialog } = await import('./dialog-settings.js');
-    openSettingsDialog();
-  });
+  btnAddLink.addEventListener('click', () => askMainWindow('add-link', null, () => openLinkDialog(null)));
+  btnAddGroup.addEventListener('click', () => askMainWindow('add-group', null, () => openGroupDialog(null)));
+  btnEmptyAdd.addEventListener('click', () => askMainWindow('add-link', null, () => openLinkDialog(null)));
+  btnSettings.addEventListener('click', () => askMainWindow('settings', null, openSettings));
 }

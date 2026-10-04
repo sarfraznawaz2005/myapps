@@ -34,6 +34,7 @@ const CH = {
   LINK_WHATSAPP_SET: 'link:whatsapp-set',
   LINK_WHATSAPP_STATUS: 'link:whatsapp-status',
   LINK_WHATSAPP_CHAT: 'link:whatsapp-chat',
+  LINK_WHATSAPP_WIDTH: 'link:whatsapp-width',
   LINK_TEST_EXPERT_RULE: 'link:test-expert-rule',
   LINK_PICK_ELEMENT: 'link:pick-element',
   LINK_PROBE_URL: 'link:probe-url',

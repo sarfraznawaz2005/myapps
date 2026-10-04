@@ -22,7 +22,7 @@
   if (!bridge) return;
 
   var BOOL_KEYS = ['blurNames', 'blurPhotos', 'blurMessages', 'blurRecent', 'hideOnline',
-    'viewStatusPrivately', 'restoreDeleted', 'notifyOnline'];
+    'viewStatusPrivately', 'restoreDeleted', 'notifyOnline', 'resizableSidebar'];
 
   var settings = normalize((bridge.initialConfig || {}).whatsapp);
   var status = {}; // feature key -> 'ok' | 'missing'
@@ -32,6 +32,7 @@
     s = s || {};
     var out = { notifyContacts: Array.isArray(s.notifyContacts) ? s.notifyContacts.slice() : [] };
     BOOL_KEYS.forEach(function (k) { out[k] = !!s[k]; });
+    out.sidebarWidth = typeof s.sidebarWidth === 'number' && s.sidebarWidth > 0 ? Math.round(s.sidebarWidth) : 0; // 0 = WhatsApp's own width
     return out;
   }
 
@@ -115,6 +116,124 @@
     blurStyle.textContent = css;
     var parent = document.head || document.documentElement;
     if (blurStyle.parentNode !== parent) parent.appendChild(blurStyle);
+  }
+
+  // ---------------------------------------------------------------------
+  // Resizable sidebar (CSS + a drag handle). The chat list sits in a box that
+  // WhatsApp sizes itself (a share of the window). That box is the parent of
+  // #side; the panels that open over it are [data-testid="drawer-left"]. Once the user drags, the chosen width is applied by a style rule
+  // and saved on the link. Double-click the handle to go back to WhatsApp's width.
+  // ---------------------------------------------------------------------
+  var SIDEBAR_MIN = 240;
+  var CHAT_MIN = 360; // room always left for the open chat
+  var sidebarStyle = null;
+  var sidebarHandle = null;
+  var sidebarTimer = null;
+  var sidebarDragging = false;
+
+  function sidebarBox() {
+    var side = document.getElementById('side');
+    return side && side.parentElement;
+  }
+  function sidebarMax(box) {
+    var parent = box.parentElement;
+    var left = box.getBoundingClientRect().left - (parent ? parent.getBoundingClientRect().left : 0);
+    return Math.max(SIDEBAR_MIN, (parent ? parent.getBoundingClientRect().width : window.innerWidth) - left - CHAT_MIN);
+  }
+  function clampSidebar(box, w) {
+    return Math.round(Math.min(Math.max(w, SIDEBAR_MIN), sidebarMax(box)));
+  }
+  function setSidebarRule(width) {
+    if (!width) {
+      if (sidebarStyle && sidebarStyle.parentNode) sidebarStyle.parentNode.removeChild(sidebarStyle);
+      sidebarStyle = null;
+      return;
+    }
+    if (!sidebarStyle) {
+      sidebarStyle = document.createElement('style');
+      sidebarStyle.id = '__myapps-wa-sidebar';
+    }
+    // min() keeps the chat usable when the window is made smaller later.
+    // The chat list box, and the panel that slides over it (Locked chats, Archived, Settings...)
+    // so both have the same width. That panel also draws the thin line next to the chat.
+    sidebarStyle.textContent = 'div:has(> #side),[data-testid="drawer-left"]{flex:0 0 min(' + width + 'px,calc(100vw - 424px))!important;' +
+      'width:min(' + width + 'px,calc(100vw - 424px))!important;max-width:none!important;min-width:0!important;}';
+    var parent = document.head || document.documentElement;
+    if (sidebarStyle.parentNode !== parent) parent.appendChild(sidebarStyle);
+  }
+  function placeSidebarHandle() {
+    var box = sidebarBox();
+    if (!sidebarHandle) return;
+    var r = box ? box.getBoundingClientRect() : null;
+    if (!r || !r.width) { sidebarHandle.style.display = 'none'; return; }
+    sidebarHandle.style.display = 'block';
+    sidebarHandle.style.left = Math.round(r.right - 3) + 'px';
+    sidebarHandle.style.top = Math.round(r.top) + 'px';
+    sidebarHandle.style.height = Math.round(r.height) + 'px';
+  }
+  function makeSidebarHandle() {
+    var h = document.createElement('div');
+    h.id = '__myapps-wa-sidebar-handle';
+    h.title = 'Drag to resize. Double-click to reset.';
+    h.style.cssText = 'position:fixed;width:6px;cursor:col-resize;z-index:2147483000;background:transparent;transition:background .15s;';
+    h.addEventListener('mouseenter', function () { h.style.background = 'rgba(128,128,128,.45)'; });
+    h.addEventListener('mouseleave', function () { if (!sidebarDragging) h.style.background = 'transparent'; });
+    h.addEventListener('dblclick', function () {
+      settings.sidebarWidth = 0;
+      setSidebarRule(0);
+      setTimeout(placeSidebarHandle, 0);
+      try { bridge.setWhatsappWidth(0); } catch (e) { /* bridge unavailable */ }
+    });
+    h.addEventListener('mousedown', function (down) {
+      var box = sidebarBox();
+      if (!box || down.button !== 0) return;
+      down.preventDefault();
+      sidebarDragging = true;
+      h.style.background = 'rgba(128,128,128,.45)';
+      var left = box.getBoundingClientRect().left;
+      var width = settings.sidebarWidth;
+      // Text must not get selected, and the page below must not eat the moves.
+      var shield = document.createElement('div');
+      shield.style.cssText = 'position:fixed;inset:0;z-index:2147483001;cursor:col-resize;';
+      document.documentElement.appendChild(shield);
+      function move(e) {
+        width = clampSidebar(box, e.clientX - left);
+        setSidebarRule(width);
+        placeSidebarHandle();
+      }
+      function up() {
+        window.removeEventListener('mousemove', move, true);
+        window.removeEventListener('mouseup', up, true);
+        if (shield.parentNode) shield.parentNode.removeChild(shield);
+        sidebarDragging = false;
+        h.style.background = 'transparent';
+        if (width && width !== settings.sidebarWidth) {
+          settings.sidebarWidth = width;
+          try { bridge.setWhatsappWidth(width); } catch (e) { /* bridge unavailable */ }
+        }
+      }
+      window.addEventListener('mousemove', move, true);
+      window.addEventListener('mouseup', up, true);
+    });
+    return h;
+  }
+  function applySidebar() {
+    if (!settings.resizableSidebar) {
+      setSidebarRule(0);
+      if (sidebarTimer) { clearInterval(sidebarTimer); sidebarTimer = null; }
+      if (sidebarHandle && sidebarHandle.parentNode) sidebarHandle.parentNode.removeChild(sidebarHandle);
+      sidebarHandle = null;
+      delete status.resizableSidebar;
+      return;
+    }
+    if (!sidebarBox()) { status.resizableSidebar = 'missing'; return; } // chat list not on screen yet
+    status.resizableSidebar = 'ok';
+    if (!sidebarDragging) setSidebarRule(settings.sidebarWidth);
+    if (!sidebarHandle) sidebarHandle = makeSidebarHandle();
+    if (!sidebarHandle.parentNode) document.documentElement.appendChild(sidebarHandle);
+    placeSidebarHandle();
+    // WhatsApp moves things around on its own (window resize, panels): keep the handle on the edge.
+    if (!sidebarTimer) sidebarTimer = setInterval(function () { if (!sidebarDragging) placeSidebarHandle(); }, 500);
   }
 
   // ---------------------------------------------------------------------
@@ -472,6 +591,7 @@
 
   function applyAll() {
     applyBlur();
+    applySidebar();
     if (typeof window.require === 'function') {
       applyHideOnline();
       applyViewStatusPrivately();

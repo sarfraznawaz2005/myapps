@@ -44,7 +44,14 @@ function cleanKeywords(list) {
 }
 
 const WHATSAPP_FLAGS = ['blurNames', 'blurPhotos', 'blurMessages', 'blurRecent', 'hideOnline',
-  'viewStatusPrivately', 'restoreDeleted', 'notifyOnline'];
+  'viewStatusPrivately', 'restoreDeleted', 'notifyOnline', 'resizableSidebar'];
+
+// A dragged sidebar width in pixels: 0 (WhatsApp's own width) or 200 to 2000.
+function cleanSidebarWidth(value) {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(Math.max(n, 200), 2000);
+}
 
 // Only known keys, only booleans / a short list of short strings.
 function cleanWhatsapp(input) {
@@ -53,6 +60,7 @@ function cleanWhatsapp(input) {
   for (const key of WHATSAPP_FLAGS) {
     if (key in src) out[key] = !!src[key];
   }
+  if ('sidebarWidth' in src) out.sidebarWidth = cleanSidebarWidth(src.sidebarWidth);
   if ('notifyContacts' in src) {
     const seen = new Set();
     out.notifyContacts = [];
@@ -291,6 +299,12 @@ function initIpc(ctx) {
   const whatsappSettingsOf = (link) => ({ notifyContacts: [], ...cleanWhatsapp(link.whatsapp) });
   ipcMain.on(CH.LINK_WHATSAPP_STATUS, (_event, linkId, status) => {
     whatsappStatus.set(linkId, cleanWhatsappStatus(status));
+  });
+  // The page reports the width the user dragged the chat list to. Saved quietly: the
+  // page already shows it, so nothing is pushed back.
+  ipcMain.on(CH.LINK_WHATSAPP_WIDTH, (_event, linkId, width) => {
+    if (!store.getState().links.some((l) => l.id === linkId)) return;
+    store.updateLink(linkId, { whatsapp: { sidebarWidth: cleanSidebarWidth(width) } });
   });
   handle(CH.LINK_WHATSAPP_GET, (_event, id) => {
     const link = store.getState().links.find((l) => l.id === id);

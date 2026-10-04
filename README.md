@@ -204,6 +204,9 @@ injected only on WhatsApp.
   contacts you list (a name or a phone number per line).
 - **Chat with a number** — opens a chat with a phone number that is not in
   your contacts.
+- **Make sidebar resizable** — drag the right edge of the chat list to change
+  its width; double-click the edge to go back to WhatsApp's own width. The width
+  is saved per link and kept across restarts. The chat always keeps room to show.
 
 WhatsApp renames its internal code and page markup from time to time. The
 blur selectors (`BLUR_SELECTORS`) and module lookups can then stop working; an

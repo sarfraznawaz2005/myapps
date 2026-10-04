@@ -367,8 +367,19 @@ describe('keyword highlighter settings', () => {
 describe('WhatsApp extras settings (per link)', () => {
   test('every option is off by default, with no contacts', () => {
     const w = defaultLinkFields().whatsapp;
-    assert.equal(Object.entries(w).filter(([k, v]) => k !== 'notifyContacts' && v !== false).length, 0);
+    assert.equal(Object.entries(w).filter(([k, v]) => k !== 'notifyContacts' && k !== 'sidebarWidth' && v !== false).length, 0);
     assert.deepEqual(w.notifyContacts, []);
+    assert.equal(w.sidebarWidth, 0);
+  });
+
+  test('cleanWhatsapp keeps a sidebar width only as 0 or 200 to 2000 pixels', () => {
+    assert.equal(cleanWhatsapp({ sidebarWidth: 480.4 }).sidebarWidth, 480);
+    assert.equal(cleanWhatsapp({ sidebarWidth: 50 }).sidebarWidth, 200);
+    assert.equal(cleanWhatsapp({ sidebarWidth: 99999 }).sidebarWidth, 2000);
+    assert.equal(cleanWhatsapp({ sidebarWidth: -5 }).sidebarWidth, 0);
+    assert.equal(cleanWhatsapp({ sidebarWidth: 'abc' }).sidebarWidth, 0);
+    assert.equal(cleanWhatsapp({ resizableSidebar: 1 }).resizableSidebar, true);
+    assert.equal('sidebarWidth' in cleanWhatsapp({ blurNames: true }), false);
   });
 
   test('cleanWhatsapp keeps known keys only and coerces flags to booleans', () => {

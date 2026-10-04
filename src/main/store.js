@@ -88,6 +88,8 @@ function defaultLinkFields() {
       viewStatusPrivately: false,
       restoreDeleted: false,
       notifyOnline: false,
+      resizableSidebar: false,
+      sidebarWidth: 0, // pixels the user dragged the chat list to; 0 = WhatsApp's own width
       notifyContacts: [], // names or phone numbers to notify about
     },
     muted: false,

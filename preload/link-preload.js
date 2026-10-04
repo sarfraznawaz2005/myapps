@@ -540,6 +540,7 @@ if (linkId) {
     getLocation: () => ipcRenderer.invoke('link:get-location', linkId),
     onNotifClick: (cb) => ipcRenderer.on(`link:notif-click:${linkId}`, (_e, notificationId) => cb(notificationId)),
     setWhatsappStatus: (status) => ipcRenderer.send('link:whatsapp-status', linkId, status),
+    setWhatsappWidth: (width) => ipcRenderer.send('link:whatsapp-width', linkId, width),
     onConfigUpdate: (cb) => ipcRenderer.on('link:config', (_e, cfg) => cb(cfg)),
     onStartPicker: (cb) => ipcRenderer.on('link:start-picker', () => cb()),
     onStopPicker: (cb) => ipcRenderer.on('link:stop-picker', () => cb()),

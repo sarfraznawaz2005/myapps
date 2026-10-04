@@ -15,6 +15,9 @@ const GROUPS = [
     ['viewStatusPrivately', 'View statuses privately', 'The owner will not see that you viewed a status.'],
     ['restoreDeleted', 'Restore deleted messages', 'Shows the original text of messages deleted while this app was open. Kept in memory only, gone when the app closes.'],
   ] },
+  { title: 'Layout', items: [
+    ['resizableSidebar', 'Make sidebar resizable', 'Drag the right edge of the chat list to change its width. Double-click the edge to reset. The width is remembered.'],
+  ] },
   { title: 'Notifications', items: [
     ['notifyOnline', 'Notify when a contact comes online', 'Desktop notification for the contacts listed below.'],
   ] },

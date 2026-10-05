@@ -47,15 +47,44 @@
   var notifSeq = 0;
   var OriginalNotification = window.Notification;
 
+  function rememberNotification(id, inst) {
+    notifRegistry.set(id, inst);
+    // Sites that never call close() would otherwise grow this forever.
+    if (notifRegistry.size > 200) notifRegistry.delete(notifRegistry.keys().next().value);
+  }
+
+  // Where a click should go when the site gave no click handler: many sites put the
+  // target in the notification's data (data.url / data.link / ...).
+  function dataUrlOf(data) {
+    try {
+      if (typeof data === 'string') return /^(https?:\/\/|\/)/.test(data) ? data : null;
+      if (data && typeof data === 'object') {
+        var keys = ['url', 'link', 'href', 'targetUrl', 'deepLink', 'deeplink', 'click_action'];
+        for (var i = 0; i < keys.length; i++) {
+          if (typeof data[keys[i]] === 'string' && data[keys[i]]) return data[keys[i]];
+        }
+      }
+    } catch (e) { /* hostile getter; ignore */ }
+    return null;
+  }
+
   function WrapNotification(title, options) {
     var id = 'n' + (++notifSeq) + '-' + Date.now();
+    var opts = options || {};
     this._id = id;
     this._onclick = null;
-    notifRegistry.set(id, this);
+    this._listeners = [];
+    this._dataUrl = dataUrlOf(opts.data);
+    // The fields pages read back from a Notification they created.
+    this.title = String(title || '');
+    this.body = typeof opts.body === 'string' ? opts.body : '';
+    this.tag = typeof opts.tag === 'string' ? opts.tag : '';
+    this.icon = typeof opts.icon === 'string' ? opts.icon : '';
+    this.data = opts.data;
+    rememberNotification(id, this);
     // Only plain strings cross the bridge. Sites pass whole option objects
     // (WhatsApp's carries non-cloneable values), and forwarding those throws
     // inside the constructor — the page swallows it and no toast ever shows.
-    var opts = options || {};
     var safe = {};
     ['body', 'icon', 'tag'].forEach(function (k) {
       if (typeof opts[k] === 'string') safe[k] = opts[k];
@@ -70,11 +99,13 @@
     return Promise.resolve('granted');
   };
   WrapNotification.prototype.close = function () { notifRegistry.delete(this._id); };
+  // addEventListener('click', ...) can be called many times; keep them all.
   WrapNotification.prototype.addEventListener = function (type, fn) {
-    if (type === 'click' && typeof fn === 'function') this._onclick = fn;
+    if (type === 'click' && typeof fn === 'function' && this._listeners.indexOf(fn) < 0) this._listeners.push(fn);
   };
-  WrapNotification.prototype.removeEventListener = function (type) {
-    if (type === 'click') this._onclick = null;
+  WrapNotification.prototype.removeEventListener = function (type, fn) {
+    if (type !== 'click') return;
+    this._listeners = fn ? this._listeners.filter(function (f) { return f !== fn; }) : [];
   };
   Object.defineProperty(WrapNotification.prototype, 'onclick', {
     configurable: true,
@@ -86,10 +117,29 @@
   } catch (e) { /* ignore */ }
   window.Notification = WrapNotification;
 
+  // The user clicked our toast: run what the site registered, as a real click would.
   bridge.onNotifClick(function (notificationId) {
     var inst = notifRegistry.get(notificationId);
-    if (inst && typeof inst._onclick === 'function') {
-      try { inst._onclick(); } catch (e) { /* page's own handler threw; not our problem */ }
+    if (!inst) return;
+    var evt = {
+      type: 'click', target: inst, currentTarget: inst, bubbles: false, cancelable: true,
+      defaultPrevented: false, timeStamp: Date.now(),
+      preventDefault: function () {}, stopPropagation: function () {}, stopImmediatePropagation: function () {},
+    };
+    var handlers = inst._listeners.slice();
+    if (typeof inst._onclick === 'function') handlers.unshift(inst._onclick);
+    var ran = 0;
+    handlers.forEach(function (h) {
+      ran++;
+      try { h.call(inst, evt); } catch (e) { /* the page's own handler threw; not our problem */ }
+    });
+    // No handler at all: follow the link the site put in the notification's data,
+    // but only within this site, and only from the top page.
+    if (!ran && inst._dataUrl && window === window.top) {
+      try {
+        var target = new URL(inst._dataUrl, window.location.href);
+        if (target.origin === window.location.origin) window.location.assign(target.href);
+      } catch (e) { /* not a usable URL */ }
     }
   });
 
@@ -103,7 +153,7 @@
       // Only body/icon/tag are meaningful cross-process; passing everything
       // through has been observed to make some SW notifications silently
       // never fire.
-      new WrapNotification(title, { body: options.body, icon: options.icon, tag: options.tag });
+      new WrapNotification(title, { body: options.body, icon: options.icon, tag: options.tag, data: options.data });
       return Promise.resolve();
     };
     if (!window.ServiceWorkerRegistration.prototype.getNotifications) {

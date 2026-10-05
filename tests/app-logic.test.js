@@ -13,6 +13,7 @@ const { buildLinkRuleConfig, cleanKeywords, cleanWhatsapp, whatsappChatUrl } = r
 const { ViewManager, userAgentFor, clientHintsFor } = require('../src/main/viewManager');
 const { PeriodicReloadController, periodMs } = require('../src/main/periodicReload');
 const { HibernationController } = require('../src/main/hibernation');
+const { NotificationsController } = require('../src/main/notifications');
 const { EventEmitter } = require('node:events');
 
 function makeTracker(unreadPatch = {}) {
@@ -950,5 +951,62 @@ describe('sidebar auto-hide (hide until the mouse goes far left)', () => {
     edge(t); t.hide.tick();
     assert.equal(t.overlay.shownWidth, 76);
     t.hide.stop();
+  });
+});
+
+describe('notification clicks', () => {
+  function make(win) {
+    const vm = new EventEmitter();
+    const sent = [];
+    vm.activate = (id) => sent.push(['activate', id]);
+    vm.kickActiveView = () => {};
+    vm.getView = () => ({ webContents: { isDestroyed: () => false, send: (ch, id) => sent.push(['top', ch, id]) } });
+    const c = new NotificationsController({ store: { getState: () => ({ links: [], settings: {} }) }, viewManager: vm, getMainWindow: () => win });
+    return { c, sent };
+  }
+
+  test('shown toasts are kept alive (Electron holds them weakly), capped at the newest 100', () => {
+    const { c } = make(null);
+    const first = {};
+    c._retain(first);
+    for (let i = 0; i < 150; i++) c._retain({});
+    assert.equal(c.liveToasts.size, 100);
+    assert.equal(c.liveToasts.has(first), false); // oldest dropped
+    const recent = {};
+    c._retain(recent);
+    assert.equal(c.liveToasts.has(recent), true);
+  });
+
+  test('a click restores a minimized window, shows a hidden one, then focuses and opens the link', () => {
+    const calls = [];
+    const win = {
+      isDestroyed: () => false, isMinimized: () => true, isVisible: () => true,
+      restore: () => calls.push('restore'), show: () => calls.push('show'), focus: () => calls.push('focus'),
+    };
+    const { c, sent } = make(win);
+    c._focusLink('L1');
+    assert.deepEqual(calls, ['restore', 'focus']);
+    assert.deepEqual(sent[0], ['activate', 'L1']);
+    calls.length = 0;
+    win.isMinimized = () => false; win.isVisible = () => false;
+    c._focusLink('L1');
+    assert.deepEqual(calls, ['show', 'focus']);
+  });
+
+  test('the click goes to the frame that raised the notification, else to the top page', () => {
+    const { c, sent } = make(null);
+    const frameCalls = [];
+    c._deliverClick('L1', 'n1', { detached: false, send: (ch, id) => frameCalls.push([ch, id]) });
+    assert.deepEqual(frameCalls, [['link:notif-click:L1', 'n1']]);
+    assert.deepEqual(sent, []); // not also sent to the top page
+
+    c._deliverClick('L1', 'n2', { detached: true, send: () => { throw new Error('must not be used'); } });
+    c._deliverClick('L1', 'n3', { detached: false, send: () => { throw new Error('frame gone'); } });
+    c._deliverClick('L1', 'n4', undefined);
+    assert.deepEqual(sent.map((x) => x[2]), ['n2', 'n3', 'n4']);
+
+    const before = sent.length;
+    c._deliverClick('L1', undefined, undefined); // no notification id: nothing to deliver
+    assert.equal(sent.length, before);
   });
 });

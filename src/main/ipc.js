@@ -330,11 +330,11 @@ function initIpc(ctx) {
 
   ipcMain.on(CH.LINK_BADGE, (_event, linkId, count) => unreadTracker.reportBadge(linkId, count));
   ipcMain.on(CH.LINK_EXPERT, (_event, linkId, payload) => unreadTracker.reportExpert(linkId, payload || {}));
-  ipcMain.on(CH.LINK_NOTIFICATION, (_event, linkId, payload) => {
+  ipcMain.on(CH.LINK_NOTIFICATION, (event, linkId, payload) => {
     // A real notification is proof of new activity on its own — light up the
     // sidebar/tray/taskbar even for services with no count/DOM signal wired up.
     unreadTracker.reportNotified(linkId);
-    notifications.handlePageNotification(linkId, payload || {});
+    notifications.handlePageNotification(linkId, payload || {}, event.senderFrame);
   });
   ipcMain.on(CH.LINK_PICKED_ELEMENT, (_event, linkId, payload) => {
     sendToShell(ctx, CH.SHELL_OPEN_DIALOG, { type: 'picked-element', linkId, ...payload });

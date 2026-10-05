@@ -8,6 +8,7 @@ const favicon = require('./favicon');
 const ICON_FALLBACK = path.join(__dirname, '..', '..', 'assets', 'icon.png');
 const SUPPRESS_AFTER_LOAD_MS = 10000;
 const SYNTH_DELAY_MS = 3000;
+const MAX_LIVE_TOASTS = 100;
 
 class NotificationsController {
   constructor({ store, viewManager, getMainWindow }) {
@@ -16,6 +17,11 @@ class NotificationsController {
     this.getMainWindow = getMainWindow;
     this.everSentReal = new Set(); // linkIds that have ever forwarded a real page notification
     this.loadedAt = new Map(); // linkId -> timestamp of last load/wake
+    // Toasts we have shown. Electron holds its Notification objects weakly: once
+    // our reference is gone the object can be garbage collected, and a later
+    // click (on the toast, or on it in the Action Center) fires no handler at all.
+    // So keep them. Only the newest MAX_LIVE_TOASTS are kept.
+    this.liveToasts = new Set();
     this.viewManager.on('loaded', (id) => this.loadedAt.set(id, Date.now()));
   }
 
@@ -47,9 +53,20 @@ class NotificationsController {
     return false;
   }
 
+  _retain(notif) {
+    this.liveToasts.add(notif);
+    while (this.liveToasts.size > MAX_LIVE_TOASTS) {
+      this.liveToasts.delete(this.liveToasts.values().next().value);
+    }
+    return notif;
+  }
+
   _focusLink(linkId) {
     const mainWindow = this.getMainWindow();
     if (mainWindow && !mainWindow.isDestroyed()) {
+      // A minimized window still reports isVisible(), so show() alone left it
+      // minimized and the click looked like it did nothing.
+      if (mainWindow.isMinimized()) mainWindow.restore();
       if (!mainWindow.isVisible()) mainWindow.show();
       mainWindow.focus();
     }
@@ -65,7 +82,10 @@ class NotificationsController {
 
   // Path A: a real notification forwarded from the page (window.Notification
   // shim or ServiceWorkerRegistration#showNotification patch).
-  handlePageNotification(linkId, payload) {
+  // `frame` is the page frame that raised it (WebFrameMain). The click has to go
+  // back to that same frame: the notification object lives in its JS world, and
+  // many sites raise theirs from an iframe, not the top page.
+  handlePageNotification(linkId, payload, frame) {
     const link = this._link(linkId);
     if (!link) return;
     this.everSentReal.add(linkId);
@@ -83,17 +103,26 @@ class NotificationsController {
     });
     notif.on('click', () => {
       this._focusLink(linkId);
-      const view = this.viewManager.getView(linkId);
-      if (view && !view.webContents.isDestroyed() && payload.notificationId) {
-        view.webContents.send(notifClickChannel(linkId), payload.notificationId);
-      }
+      this._deliverClick(linkId, payload.notificationId, frame);
     });
     // A Windows toast can steal input hit-testing from the active view without
     // ever sending our window a real blur/focus cycle, leaving clicks dead
     // until minimize/restore. Closing the toast (dismissed or timed out) is
     // the reliable signal to self-heal — see viewManager.kickActiveView.
     notif.on('close', () => this.viewManager.kickActiveView());
-    notif.show();
+    this._retain(notif).show();
+  }
+
+  // Tell the page its notification was clicked, so the site's own onclick runs
+  // (that is what opens the right chat/thread). Frame first, top page as fallback.
+  _deliverClick(linkId, notificationId, frame) {
+    if (!notificationId) return;
+    const channel = notifClickChannel(linkId);
+    try {
+      if (frame && !frame.detached) { frame.send(channel, notificationId); return; }
+    } catch (_e) { /* frame is gone: fall back to the top page */ }
+    const view = this.viewManager.getView(linkId);
+    if (view && !view.webContents.isDestroyed()) view.webContents.send(channel, notificationId);
   }
 
   // Path B: synthesized from an unread signal changing, generalized from
@@ -151,7 +180,7 @@ class NotificationsController {
     });
     notif.on('click', () => this._focusLink(linkId));
     notif.on('close', () => this.viewManager.kickActiveView());
-    notif.show();
+    this._retain(notif).show();
   }
 }
 

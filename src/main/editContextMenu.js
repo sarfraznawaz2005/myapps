@@ -245,7 +245,9 @@ function attachEditContextMenu(webContents, { withPageControls = false, withUrlB
         { label: 'Paste', role: 'paste', enabled: params.editFlags.canPaste }
       );
       if (onUrlBar) {
-        const pasted = clipboard.readText().trim();
+        // await: newer Electron may hand back a Promise instead of a string.
+        let pasted = '';
+        try { pasted = String((await clipboard.readText()) || '').trim(); } catch (_e) { /* empty clipboard */ }
         template.push({
           label: 'Paste and Go',
           enabled: !!pasted,

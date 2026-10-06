@@ -50,6 +50,7 @@ const CH = {
   COMMAND_DELETE: 'command:delete',
 
   NOTE_SET: 'note:set',
+  CSS_SET: 'css:set',
 
   GROUP_CREATE: 'group:create',
   GROUP_UPDATE: 'group:update',

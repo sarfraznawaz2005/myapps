@@ -36,6 +36,7 @@ function onShellState(payload) {
     userscripts: payload.userscripts || [],
     commands: payload.commands || [],
     notes: payload.notes || {},
+    customCss: payload.customCss || {},
     unread: payload.unread || getState().unread,
     aggregate: payload.aggregate != null ? payload.aggregate : getState().aggregate,
     activeLinkId: payload.activeLinkId !== undefined ? payload.activeLinkId : getState().activeLinkId,

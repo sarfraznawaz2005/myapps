@@ -10,6 +10,7 @@ let state = {
   userscripts: [],
   commands: [],
   notes: {}, // page URL -> { text, updatedAt }
+  customCss: {}, // domain -> { css, updatedAt }
   unread: {}, // linkId -> { count, activity, source, stale }
   aggregate: 0,
   activeLinkId: null,

@@ -68,7 +68,12 @@ function defaultState() {
     userscripts: [],
     commands: [],
     notes: {}, // exact page URL -> { text, updatedAt }
+    customCss: {}, // domain (no "www.") -> { css, updatedAt }, applied to every page on that domain
   };
+}
+
+function cleanCustomCss(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
 function defaultLinkFields() {
@@ -220,6 +225,7 @@ class Store {
       parsed.userscripts = Array.isArray(parsed.userscripts) ? parsed.userscripts : [];
       parsed.commands = Array.isArray(parsed.commands) ? parsed.commands : [];
       parsed.notes = parsed.notes && typeof parsed.notes === 'object' && !Array.isArray(parsed.notes) ? parsed.notes : {};
+      parsed.customCss = cleanCustomCss(parsed.customCss);
       this.state = parsed;
     } catch (err) {
       // Corrupt file: preserve it for forensics, fall back to defaults.
@@ -438,6 +444,7 @@ class Store {
     parsed.userscripts = Array.isArray(parsed.userscripts) ? parsed.userscripts : [];
     parsed.commands = Array.isArray(parsed.commands) ? parsed.commands : [];
     parsed.notes = parsed.notes && typeof parsed.notes === 'object' && !Array.isArray(parsed.notes) ? parsed.notes : {};
+    parsed.customCss = cleanCustomCss(parsed.customCss);
     this.state = parsed;
     this.saveImmediate();
     return this.state;
@@ -527,6 +534,21 @@ class Store {
     }
     this.save();
     return this.state.notes[url] || null;
+  }
+
+  // ---- custom CSS ----
+
+  // One stylesheet per domain. Empty text removes it.
+  setCustomCss(host, css) {
+    if (typeof host !== 'string' || !host) return null;
+    const text = typeof css === 'string' ? css.slice(0, 200000) : '';
+    if (text.trim()) {
+      this.state.customCss[host] = { css: text, updatedAt: Date.now() };
+    } else {
+      delete this.state.customCss[host];
+    }
+    this.save();
+    return this.state.customCss[host] || null;
   }
 }
 

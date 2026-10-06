@@ -15,6 +15,7 @@ const permissionPrompt = require('./permissionPrompt');
 const updateCheck = require('./updateCheck');
 const passwords = require('./passwords');
 const { applyDnsSettings } = require('./dns');
+const { hostOf } = require('./viewManager');
 
 const WHATSAPP_SOURCE = fs.readFileSync(
   path.join(__dirname, '..', '..', 'preload', 'whatsapp-main-world.js'),
@@ -553,6 +554,15 @@ function initIpc(ctx) {
   handle(CH.COMMAND_DELETE, (_event, id) => store.deleteCommand(id));
 
   handle(CH.NOTE_SET, (_event, url, text) => store.setNote(url, text));
+
+  // Custom CSS for a domain. The host is normalised here, never trusted from the shell.
+  handle(CH.CSS_SET, (_event, host, css) => {
+    const key = hostOf(`https://${String(host || '')}`);
+    if (!key) return null;
+    const saved = store.setCustomCss(key, css);
+    viewManager.refreshCustomCss();
+    return saved;
+  });
 
   handle(CH.GROUP_CREATE, (_event, data) => store.createGroup(data));
   handle(CH.GROUP_UPDATE, (_event, id, patch) => store.updateGroup(id, patch));

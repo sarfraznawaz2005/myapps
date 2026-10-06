@@ -75,6 +75,7 @@ class ViewManager extends EventEmitter {
     this.mainWindow = mainWindow;
     this.store = store;
     this._darkCssKeys = new Map(); // linkId -> key of the dark-mode CSS in the current page
+    this._customCssKeys = new Map(); // linkId -> key of the custom CSS in the current page
     this._modeJobs = new Map(); // linkId -> last queued view-mode job (see _applyViewMode)
     this.views = new Map(); // linkId -> WebContentsView
     this.activeId = null;
@@ -158,7 +159,7 @@ class ViewManager extends EventEmitter {
     // request here (Windows/Linux).
     wc.on('zoom-changed', (_e, direction) => this.stepZoom(id, direction));
     // Inserted CSS belongs to one document, so every new page load needs it again.
-    wc.on('dom-ready', () => this._applyDarkMode(id));
+    wc.on('dom-ready', () => { this._applyDarkMode(id); this._applyCustomCss(id); });
     wc.on('page-title-updated', (_e, title) => this.emit('title', id, title));
     wc.on('page-favicon-updated', (_e, favicons) => this.emit('favicon', id, favicons));
 
@@ -548,6 +549,32 @@ class ViewManager extends EventEmitter {
     } catch (_e) { /* page went away mid-insert */ }
   }
 
+  // Custom CSS the user wrote for this page's domain (toolbar button). Stored by
+  // domain in the store, so it comes back after restarts and on every link or
+  // page of that domain.
+  async _applyCustomCss(id) {
+    const view = this.views.get(id);
+    if (!view || view.webContents.isDestroyed()) return;
+    const wc = view.webContents;
+    const oldKey = this._customCssKeys.get(id);
+    this._customCssKeys.delete(id);
+    try {
+      if (oldKey) await wc.removeInsertedCSS(oldKey);
+    } catch (_e) { /* the old document is gone, nothing to remove */ }
+    if (wc.isDestroyed()) return;
+    const entry = this.store.getState().customCss[hostOf(wc.getURL())];
+    if (!entry || !entry.css) return;
+    try {
+      const key = await wc.insertCSS(entry.css);
+      this._customCssKeys.set(id, key);
+    } catch (_e) { /* page went away mid-insert */ }
+  }
+
+  // Custom CSS was saved: update every loaded page now, not only on next load.
+  refreshCustomCss() {
+    for (const id of this.views.keys()) this._applyCustomCss(id);
+  }
+
   // Toolbar toggle. Saved on the link, so it survives hibernation and restarts.
   setDarkMode(id, on) {
     const link = this._link(id);
@@ -577,6 +604,7 @@ class ViewManager extends EventEmitter {
     const view = this.views.get(id);
     if (!view) return false;
     this._darkCssKeys.delete(id);
+    this._customCssKeys.delete(id);
     try {
       if (this.activeId === id) this.activeId = null;
       this.mainWindow.contentView.removeChildView(view);
@@ -699,4 +727,4 @@ class ViewManager extends EventEmitter {
   }
 }
 
-module.exports = { ViewManager, userAgentFor, clientHintsFor };
+module.exports = { ViewManager, userAgentFor, clientHintsFor, hostOf };

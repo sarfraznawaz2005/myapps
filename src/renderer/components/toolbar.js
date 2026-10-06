@@ -4,6 +4,7 @@ import { openLinkDialog } from './dialog-link.js';
 import { openNoteDialog } from './dialog-note.js';
 import { openKeywordsDialog } from './dialog-keywords.js';
 import { openWhatsappDialog } from './dialog-whatsapp.js';
+import { openCssDialog, cssHostOf } from './dialog-css.js';
 
 const toolbarEl = document.getElementById('toolbar');
 let urlEditing = false;
@@ -24,6 +25,7 @@ function render() {
     <button id="tb-viewmode" title="Switch to mobile view">${iconHtml('desktop')}</button>
     <button id="tb-dark" title="Dark mode">${iconHtml('moon')}</button>
     <button id="tb-highlight" title="Highlight keywords">${iconHtml('highlighter')}</button>
+    <button id="tb-css" title="Custom CSS for this site">${iconHtml('paintbrush')}</button>
     <button id="tb-note" title="Add note">${iconHtml('note')}</button>
     <button id="tb-whatsapp" title="WhatsApp extras" style="display:none">${iconHtml('eyeOff')}</button>
     <button id="tb-copy" title="Copy URL">${iconHtml('copy')}</button>
@@ -70,6 +72,7 @@ function render() {
   document.getElementById('tb-zoom-reset').addEventListener('click', () => zoomActive('reset'));
   document.getElementById('tb-zoom-in').addEventListener('click', () => zoomActive('in'));
   document.getElementById('tb-highlight').addEventListener('click', () => openKeywordsDialog());
+  document.getElementById('tb-css').addEventListener('click', () => openCssDialog(currentUrl()));
   document.getElementById('tb-note').addEventListener('click', () => openNoteDialog(currentUrl()));
   document.getElementById('tb-copy').addEventListener('click', () => window.myApps.invoke('nav:copy-url'));
   document.getElementById('tb-external').addEventListener('click', () => window.myApps.invoke('nav:open-external'));
@@ -205,8 +208,14 @@ export function update() {
   const hlBtn = document.getElementById('tb-highlight');
   hlBtn.title = keywords.length ? `Highlighting ${keywords.length} keyword${keywords.length === 1 ? '' : 's'} (click to edit)` : 'Highlight keywords';
   hlBtn.style.color = keywords.length ? 'var(--accent)' : '';
-  const noteBtn = document.getElementById('tb-note');
   const url = currentUrl();
+  const cssBtn = document.getElementById('tb-css');
+  const cssDomain = cssHostOf(url);
+  const hasCss = !!cssDomain && !!(state.customCss || {})[cssDomain];
+  cssBtn.disabled = !cssDomain;
+  cssBtn.title = hasCss ? `Custom CSS is on for ${cssDomain} (click to edit)` : 'Custom CSS for this site';
+  cssBtn.style.color = hasCss ? 'var(--accent)' : '';
+  const noteBtn = document.getElementById('tb-note');
   const note = url ? state.notes[url] : null;
   noteBtn.disabled = !url;
   noteBtn.innerHTML = iconHtml(note ? 'noteFilled' : 'note');

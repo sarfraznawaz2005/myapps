@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, Menu, nativeTheme, powerMonitor, screen } = require('electron');
+const { app, Menu, nativeTheme, powerMonitor, screen, globalShortcut } = require('electron');
 const { APP_ID } = require('./src/main/constants');
 const { Store } = require('./src/main/store');
 const { AppLock } = require('./src/main/appLock');
@@ -22,6 +22,8 @@ const { initIpc, recomputeAggregate } = require('./src/main/ipc');
 const { startDevReload } = require('./src/main/devReload');
 const { runStartupCommands } = require('./src/main/startupCommands');
 const { applyDnsSettings } = require('./src/main/dns');
+const downloads = require('./src/main/downloads');
+const { CH } = require('./src/main/constants');
 
 // Must be called before whenReady(), and must match build.appId in
 // package.json, or packaged Windows notifications show as "electron.app.Electron".
@@ -68,6 +70,40 @@ if (!gotLock) {
     ctx.isQuitting = true;
     app.quit();
   }
+
+  // The system-wide show/hide key (Settings > Startup & window). Pressed while
+  // the app is in front it hides the app; otherwise it brings the app up.
+  function toggleWindow() {
+    const w = ctx.mainWindow;
+    if (!w || w.isDestroyed()) return;
+    if (w.isVisible() && !w.isMinimized() && w.isFocused()) {
+      // Without a tray icon there is no way back from a hidden window, so minimize instead.
+      if (ctx.store.getState().settings.showTrayIcon) {
+        w.hide();
+        if (ctx.hibernationController) ctx.hibernationController.onWindowHide();
+      } else {
+        w.minimize();
+      }
+    } else {
+      showAppWindow();
+    }
+  }
+
+  // (Re)registers the key from settings. `notify`: tell the user when it cannot be used.
+  ctx.applyHotkey = (notify) => {
+    globalShortcut.unregisterAll();
+    const accelerator = (ctx.store.getState().settings.globalHotkey || '').trim();
+    if (!accelerator) return true;
+    let ok = false;
+    try { ok = globalShortcut.register(accelerator, toggleWindow); } catch (_e) { ok = false; }
+    if (!ok && notify && ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
+      ctx.mainWindow.webContents.send(CH.SHELL_TOAST, {
+        type: 'warning',
+        message: `Could not use "${accelerator}" as the global key. Windows or another app may already use it. Try a different one in Settings.`,
+      });
+    }
+    return ok;
+  };
 
   function toggleDnd(enabled) {
     ctx.store.updateSettings({ dnd: { enabled: !!enabled, until: null } });
@@ -128,6 +164,11 @@ if (!gotLock) {
     const tray = new TrayController({ store, showAppWindow, quitApp, toggleDnd });
     ctx.tray = tray;
     indicator.setTray(tray);
+
+    downloads.init({
+      getMainWindow: () => ctx.mainWindow,
+      getLinkName: (id) => { const l = store.getState().links.find((x) => x.id === id); return l ? l.name : ''; },
+    });
 
     initIpc(ctx);
 
@@ -223,6 +264,12 @@ if (!gotLock) {
 
     if (store.getState().settings.showTrayIcon) tray.create();
 
+    // The shell must be loaded to show a toast, so tell about a bad key after it loads.
+    const hotkeyOk = ctx.applyHotkey(false);
+    if (!hotkeyOk) {
+      mainWindow.webContents.once('did-finish-load', () => ctx.applyHotkey(true));
+    }
+
     autolaunch.initAutoLaunchDefaultOnce(store);
 
     startDevReload(ctx);
@@ -231,6 +278,7 @@ if (!gotLock) {
 
     app.on('before-quit', () => {
       ctx.isQuitting = true;
+      globalShortcut.unregisterAll();
       viewManager.destroyAll();
       appLock.stopIdleWatch();
       hibernationController.destroy();

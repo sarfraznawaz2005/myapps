@@ -18,6 +18,8 @@ const INVOKE_CHANNELS = new Set([
   'note:set', 'css:set',
   'settings:update', 'settings:export', 'settings:import',
   'dnd:set',
+  'downloads:list', 'downloads:act', 'downloads:clear',
+  'page:screenshot', 'page:print', 'page:pdf',
   'nav:go', 'nav:navigate', 'nav:copy-url', 'nav:open-external',
   'metrics:get', 'menu:link-context',
   'link:permission-respond',
@@ -31,7 +33,7 @@ const ON_CHANNELS = new Set([
   'shell:state', 'shell:unread', 'shell:aggregate', 'shell:nav',
   'shell:link-status', 'shell:favicon', 'shell:audio', 'shell:active',
   'shell:toast', 'shell:open-dialog', 'shell:permission-prompt', 'shell:find-result',
-  'shell:lock', 'shell:sidebar-hidden',
+  'shell:lock', 'shell:sidebar-hidden', 'shell:downloads',
 ]);
 
 // When the app starts locked, main passes --app-locked so the shell is

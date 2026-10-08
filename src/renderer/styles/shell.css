@@ -565,3 +565,18 @@ html[data-locked="1"] #toast-host { display: none !important; }
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Downloads list (toolbar dropdown) */
+.dl-panel { max-height: 60vh; overflow-y: auto; }
+.dl-empty { padding: 14px 12px; font-size: 12.5px; color: var(--text-dim); }
+.dl-row { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; }
+.dl-row:hover { background: var(--bg-hover); }
+.dl-info { flex: 1; min-width: 0; }
+.dl-name { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-sub { font-size: 11px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-bar { height: 3px; margin-top: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.dl-bar > div { height: 100%; background: var(--accent, #4f8cff); }
+.dl-actions { display: flex; gap: 2px; flex-shrink: 0; }
+.dl-actions button, .dl-clear { font-size: 11.5px; padding: 3px 7px; border-radius: 5px; color: var(--text-dim); }
+.dl-actions button:hover, .dl-clear:hover { background: var(--bg-hover); color: var(--text); }
+.dl-clear { display: block; width: 100%; margin-top: 2px; text-align: center; border-top: 1px solid var(--border); border-radius: 0 0 6px 6px; padding: 7px; }

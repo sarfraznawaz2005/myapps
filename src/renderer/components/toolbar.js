@@ -1,6 +1,5 @@
 import { getState, getLink } from '../state.js';
 import { icons } from '../icons.js';
-import { openLinkDialog } from './dialog-link.js';
 import { openNoteDialog } from './dialog-note.js';
 import { openKeywordsDialog } from './dialog-keywords.js';
 import { openWhatsappDialog } from './dialog-whatsapp.js';
@@ -30,6 +29,9 @@ function render() {
     <button id="tb-whatsapp" title="WhatsApp extras" style="display:none">${iconHtml('eyeOff')}</button>
     <button id="tb-copy" title="Copy URL">${iconHtml('copy')}</button>
     <button id="tb-external" title="Open in browser">${iconHtml('external')}</button>
+    <button id="tb-downloads" title="Downloads">${iconHtml('download')}</button>
+    <button id="tb-screenshot" title="Screenshot">${iconHtml('camera')}</button>
+    <button id="tb-print" title="Print or save as PDF">${iconHtml('printer')}</button>
     <button id="tb-zoom-out" title="Zoom out (Ctrl+-)">${iconHtml('minus')}</button>
     <button id="tb-zoom-reset" title="Reset zoom to 100% (Ctrl+0)">100%</button>
     <button id="tb-zoom-in" title="Zoom in (Ctrl++)">${iconHtml('plus')}</button>
@@ -76,6 +78,15 @@ function render() {
   document.getElementById('tb-note').addEventListener('click', () => openNoteDialog(currentUrl()));
   document.getElementById('tb-copy').addEventListener('click', () => window.myApps.invoke('nav:copy-url'));
   document.getElementById('tb-external').addEventListener('click', () => window.myApps.invoke('nav:open-external'));
+  document.getElementById('tb-downloads').addEventListener('click', (e) => openDownloadsPanel(e.currentTarget));
+  document.getElementById('tb-screenshot').addEventListener('click', (e) => openActionMenu(e.currentTarget, 'tb-screenshot-menu', [
+    ['Visible area', () => window.myApps.invoke('page:screenshot', 'visible')],
+    ['Whole page', () => window.myApps.invoke('page:screenshot', 'full')],
+  ]));
+  document.getElementById('tb-print').addEventListener('click', (e) => openActionMenu(e.currentTarget, 'tb-print-menu', [
+    ['Print…', () => window.myApps.invoke('page:print')],
+    ['Save as PDF…', () => window.myApps.invoke('page:pdf')],
+  ]));
   document.getElementById('tb-more').addEventListener('click', (e) => openOverflowMenu(e.currentTarget));
   wireFindBar();
 
@@ -104,25 +115,68 @@ window.addEventListener('__myapps-paste-and-go', (e) => {
   if (urlInput) urlInput.blur();
 });
 
-function openOverflowMenu(anchor) {
-  const id = getState().activeLinkId;
-  if (!id) return;
-  const existing = document.getElementById('tb-overflow-menu');
-  if (existing) { existing.remove(); document.getElementById('tb-overflow-backdrop').remove(); window.myApps.send('ui:modal-open', false); return; }
-  const link = getLink(id);
+// One dropdown at a time, shown under a toolbar button. While it is open the
+// page view is hidden (ui:modal-open), or the page would draw over the menu.
+let dropdown = null; // { id, menu, backdrop, onKey, refresh }
+
+function closeDropdown() {
+  if (!dropdown) return;
+  document.removeEventListener('keydown', dropdown.onKey, true);
+  dropdown.menu.remove();
+  dropdown.backdrop.remove();
+  dropdown = null;
+  window.myApps.send('ui:modal-open', false);
+}
+
+// fill(menu) puts the content in the menu; it runs again on every refresh.
+function showDropdown(anchor, id, minWidth, fill) {
+  if (dropdown) {
+    const same = dropdown.id === id;
+    closeDropdown();
+    if (same) return;
+  }
   const rect = anchor.getBoundingClientRect();
   const backdrop = document.createElement('div');
   backdrop.id = 'tb-overflow-backdrop';
   backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:119;';
   const menu = document.createElement('div');
   menu.id = 'tb-overflow-menu';
-  menu.style.cssText = `position:fixed;top:${rect.bottom + 4}px;right:12px;background:var(--bg-elevated);
-    border:1px solid var(--border);border-radius:8px;padding:4px;min-width:180px;z-index:120;
+  const right = Math.max(8, window.innerWidth - rect.right);
+  menu.style.cssText = `position:fixed;top:${rect.bottom + 4}px;right:${right}px;background:var(--bg-elevated);
+    border:1px solid var(--border);border-radius:8px;padding:4px;min-width:${minWidth}px;z-index:120;
     box-shadow:0 12px 32px rgba(0,0,0,.4);`;
-  const items = [
-    ['Zoom in', () => window.myApps.invoke('link:zoom', id, 'in')],
-    ['Zoom out', () => window.myApps.invoke('link:zoom', id, 'out')],
-    ['Reset zoom', () => window.myApps.invoke('link:zoom', id, 'reset')],
+  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); closeDropdown(); } };
+  dropdown = { id, menu, backdrop, onKey, refresh: () => fill(menu) };
+  fill(menu);
+  window.myApps.send('ui:modal-open', true);
+  backdrop.addEventListener('click', closeDropdown);
+  document.addEventListener('keydown', onKey, true);
+  document.body.appendChild(backdrop);
+  document.body.appendChild(menu);
+}
+
+// A plain list of [label, action]. The action runs after the menu closes and
+// the page is back on screen (a screenshot needs the page visible).
+function openActionMenu(anchor, id, items) {
+  showDropdown(anchor, id, 160, (menu) => {
+    menu.innerHTML = items.map(([label], i) => `<div class="menu-item" data-i="${i}" style="padding:7px 10px;border-radius:6px;cursor:pointer;font-size:12.5px;">${label}</div>`).join('');
+    menu.querySelectorAll('.menu-item').forEach((el) => {
+      el.addEventListener('mouseenter', () => { el.style.background = 'var(--bg-hover)'; });
+      el.addEventListener('mouseleave', () => { el.style.background = ''; });
+      el.addEventListener('click', () => {
+        const action = items[Number(el.dataset.i)][1];
+        closeDropdown();
+        setTimeout(action, 250);
+      });
+    });
+  });
+}
+
+function openOverflowMenu(anchor) {
+  const id = getState().activeLinkId;
+  if (!id) return;
+  const link = getLink(id);
+  openActionMenu(anchor, 'tb-more-menu', [
     ['Hibernate now', () => window.myApps.invoke('link:hibernate', id)],
     ['Clear login data…', async () => {
       if (confirm(`Clear login data for "${link.name}"? This signs it out.`)) {
@@ -130,31 +184,103 @@ function openOverflowMenu(anchor) {
       }
     }],
     ['Open DevTools (F12)', () => window.myApps.invoke('link:devtools', id)],
-    ['Edit…', () => openLinkDialog(link)],
-  ];
-  menu.innerHTML = items.map(([label], i) => `<div class="menu-item" data-i="${i}" style="padding:7px 10px;border-radius:6px;cursor:pointer;font-size:12.5px;">${label}</div>`).join('');
-  window.myApps.send('ui:modal-open', true);
-  const closeMenu = () => {
-    menu.remove();
-    backdrop.remove();
-    window.myApps.send('ui:modal-open', false);
-  };
-  menu.querySelectorAll('.menu-item').forEach((el) => {
-    el.addEventListener('mouseenter', () => { el.style.background = 'var(--bg-hover)'; });
-    el.addEventListener('mouseleave', () => { el.style.background = ''; });
-    el.addEventListener('click', () => {
-      items[Number(el.dataset.i)][1]();
-      closeMenu();
-    });
-  });
-  document.body.appendChild(backdrop);
-  document.body.appendChild(menu);
-  setTimeout(() => {
-    document.addEventListener('click', function onDocClick(ev) {
-      if (!menu.contains(ev.target)) { closeMenu(); document.removeEventListener('click', onDocClick); }
-    });
-  }, 0);
+  ]);
 }
+
+// ---- downloads list ----
+let downloadList = [];
+
+function formatBytes(n) {
+  if (!n || n < 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  let v = n;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
+}
+
+function downloadStatus(d) {
+  if (d.state === 'completed') return formatBytes(d.total || d.received) || 'Done';
+  if (d.state === 'cancelled') return 'Cancelled';
+  if (d.state === 'interrupted') return 'Failed';
+  if (d.total > 0) return `${Math.round((d.received / d.total) * 100)}% — ${formatBytes(d.received)} of ${formatBytes(d.total)}`;
+  return formatBytes(d.received) || 'Starting…';
+}
+
+function updateDownloadsButton() {
+  const btn = document.getElementById('tb-downloads');
+  if (!btn) return;
+  const active = downloadList.filter((d) => d.state === 'progressing').length;
+  btn.style.color = active ? 'var(--accent)' : '';
+  btn.title = active ? `Downloads (${active} in progress)` : 'Downloads';
+}
+
+function fillDownloads(menu) {
+  menu.innerHTML = '';
+  menu.classList.add('dl-panel');
+  if (!downloadList.length) {
+    const empty = document.createElement('div');
+    empty.className = 'dl-empty';
+    empty.textContent = 'No downloads yet.';
+    menu.appendChild(empty);
+    return;
+  }
+  for (const d of downloadList) {
+    const row = document.createElement('div');
+    row.className = 'dl-row';
+    const info = document.createElement('div');
+    info.className = 'dl-info';
+    const name = document.createElement('div');
+    name.className = 'dl-name';
+    name.textContent = d.filename || 'Download';
+    name.title = d.path || d.filename || '';
+    const sub = document.createElement('div');
+    sub.className = 'dl-sub';
+    sub.textContent = `${downloadStatus(d)}${d.linkName ? ` · ${d.linkName}` : ''}`;
+    info.append(name, sub);
+    if (d.state === 'progressing' && d.total > 0) {
+      const bar = document.createElement('div');
+      bar.className = 'dl-bar';
+      const fill = document.createElement('div');
+      fill.style.width = `${Math.min(100, Math.round((d.received / d.total) * 100))}%`;
+      bar.appendChild(fill);
+      info.appendChild(bar);
+    }
+    const buttons = document.createElement('div');
+    buttons.className = 'dl-actions';
+    const add = (label, title, action) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.title = title;
+      b.addEventListener('click', () => window.myApps.invoke('downloads:act', d.id, action));
+      buttons.appendChild(b);
+    };
+    if (d.state === 'completed') { add('Open', 'Open the file', 'open'); add('Folder', 'Show in folder', 'show'); }
+    if (d.state === 'progressing') add('Cancel', 'Cancel this download', 'cancel');
+    else add('✕', 'Remove from list', 'remove');
+    row.append(info, buttons);
+    menu.appendChild(row);
+  }
+  if (downloadList.some((d) => d.state !== 'progressing')) {
+    const clear = document.createElement('button');
+    clear.className = 'dl-clear';
+    clear.textContent = 'Clear finished';
+    clear.addEventListener('click', () => window.myApps.invoke('downloads:clear'));
+    menu.appendChild(clear);
+  }
+}
+
+async function openDownloadsPanel(anchor) {
+  const list = await window.myApps.invoke('downloads:list');
+  if (Array.isArray(list)) downloadList = list;
+  showDropdown(anchor, 'tb-downloads-menu', 340, fillDownloads);
+}
+
+window.myApps.on('shell:downloads', (list) => {
+  downloadList = Array.isArray(list) ? list : [];
+  updateDownloadsButton();
+  if (dropdown && dropdown.id === 'tb-downloads-menu') dropdown.refresh();
+});
 
 // The page URL the user sees now (after in-page navigation), else the link's home URL.
 function currentUrl() {
@@ -222,6 +348,9 @@ export function update() {
   noteBtn.title = note ? `Note: ${note.text.length > 200 ? `${note.text.slice(0, 200)}…` : note.text}` : 'Add note';
   noteBtn.style.color = note ? 'var(--accent)' : '';
   document.getElementById('tb-external').disabled = !link;
+  document.getElementById('tb-screenshot').disabled = !link;
+  document.getElementById('tb-print').disabled = !link;
+  updateDownloadsButton();
   document.getElementById('tb-reload').innerHTML = iconHtml(status.loading ? 'stop' : 'reload');
   document.getElementById('load-bar').classList.toggle('active', !!status.loading);
 
@@ -237,6 +366,10 @@ export function update() {
 
 export function initToolbar() {
   render();
+  // A reloaded shell picks up downloads that started before it loaded.
+  window.myApps.invoke('downloads:list').then((list) => {
+    if (Array.isArray(list)) { downloadList = list; updateDownloadsButton(); }
+  }).catch(() => {});
 }
 
 export function focusUrlBar() {

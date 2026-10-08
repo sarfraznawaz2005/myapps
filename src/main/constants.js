@@ -63,6 +63,13 @@ const CH = {
 
   DND_SET: 'dnd:set',
 
+  DOWNLOADS_LIST: 'downloads:list',
+  DOWNLOADS_ACT: 'downloads:act',
+  DOWNLOADS_CLEAR: 'downloads:clear',
+  PAGE_SCREENSHOT: 'page:screenshot',
+  PAGE_PRINT: 'page:print',
+  PAGE_PDF: 'page:pdf',
+
   NAV_GO: 'nav:go',
   NAV_NAVIGATE: 'nav:navigate',
   NAV_COPY_URL: 'nav:copy-url',
@@ -99,6 +106,7 @@ const CH = {
   SHELL_FIND_RESULT: 'shell:find-result',
   SHELL_LOCK: 'shell:lock',
   SHELL_SIDEBAR_HIDDEN: 'shell:sidebar-hidden',
+  SHELL_DOWNLOADS: 'shell:downloads',
 
   // Link preload -> main
   LINK_BOOTSTRAP: 'link:bootstrap',

@@ -40,6 +40,8 @@ function defaultSettings() {
     confirmDelete: true,
     dnsProvider: 'system', // system | google | cloudflare | custom
     dnsCustomServer: '', // DNS-over-HTTPS URL, used when dnsProvider is 'custom'
+    proxyServer: '', // global proxy for every link, e.g. http://host:8080 or socks5://host:1080; empty = Windows proxy
+    globalHotkey: 'Super+Ctrl+Up', // system-wide key that shows/hides the app (Win+Ctrl+Up); empty = off. Win+Shift+Up is taken by Windows
     manualLocation: '', // 'lat,lon' — when set, sent to links instead of asking Windows
     trayHintShown: false,
     autoLaunchInitialized: false,
@@ -80,6 +82,7 @@ function defaultLinkFields() {
   return {
     icon: { mode: 'auto', path: null, url: null, fallbackLetter: null, fallbackColor: '#3b82f6' },
     userAgent: null,
+    proxy: { mode: 'global', server: '' }, // global = use Settings proxy | none = direct | custom = server below
     reloadMinutes: 0, // periodic reload every N minutes; 0 = off
     viewMode: 'desktop', // desktop | mobile (mobile = phone user-agent + narrow touch screen)
     zoom: 1,

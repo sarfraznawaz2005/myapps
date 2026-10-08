@@ -3,6 +3,8 @@
 const { session, app } = require('electron');
 const permissionPrompt = require('./permissionPrompt');
 const adblock = require('./adblock');
+const proxy = require('./proxy');
+const downloads = require('./downloads');
 
 const preparedPartitions = new Set();
 
@@ -33,6 +35,7 @@ function getLinkSession(link, store) {
     try {
       ses.setUserAgent(link.userAgent && link.userAgent.trim() ? link.userAgent.trim() : cleanedUserAgent(ses));
     } catch (_e) { /* ignore */ }
+    downloads.attach(ses, link.id);
 
     ses.setPermissionRequestHandler((_webContents, permission, callback, details) => {
       if (permission === 'notifications') return callback(true);
@@ -91,6 +94,7 @@ function getLinkSession(link, store) {
   // Re-applied on every call so toggling "Block ads" in the Edit dialog takes
   // effect the next time the link loads, without a restart.
   adblock.setEnabled(ses, link.navigation.blockAds !== false);
+  proxy.applyToSession(ses, link.partition, proxy.resolveProxyConfig(link, store.getState().settings));
   return ses;
 }
 

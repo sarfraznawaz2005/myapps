@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { ipcMain, app } = require('electron');
+const { ipcMain, app, session } = require('electron');
 const { CH } = require('./constants');
 const contextMenus = require('./contextMenus');
 const navigation = require('./navigation');
@@ -15,6 +15,9 @@ const permissionPrompt = require('./permissionPrompt');
 const updateCheck = require('./updateCheck');
 const passwords = require('./passwords');
 const { applyDnsSettings } = require('./dns');
+const proxy = require('./proxy');
+const downloads = require('./downloads');
+const pageOutput = require('./pageOutput');
 const { hostOf } = require('./viewManager');
 
 const WHATSAPP_SOURCE = fs.readFileSync(
@@ -164,6 +167,22 @@ function recomputeAggregate(ctx) {
 const ALLOWED_WHEN_LOCKED = new Set([
   CH.APP_GET_STATE, CH.APP_QUIT, CH.LOCK_STATUS, CH.LOCK_UNLOCK,
 ]);
+
+const PROXY_MODES = new Set(['global', 'none', 'custom']);
+
+// A link's proxy choice: a known mode, and a custom server only when it is valid.
+function cleanLinkProxy(input) {
+  const src = input && typeof input === 'object' ? input : {};
+  const server = typeof src.server === 'string' ? src.server.trim() : '';
+  let mode = PROXY_MODES.has(src.mode) ? src.mode : 'global';
+  if (mode === 'custom' && !proxy.isValidProxyServer(server)) mode = 'global';
+  return { mode, server: proxy.isValidProxyServer(server) ? server : '' };
+}
+
+function cleanProxyPatch(data) {
+  if (!data || typeof data !== 'object' || !Object.prototype.hasOwnProperty.call(data, 'proxy')) return data;
+  return { ...data, proxy: cleanLinkProxy(data.proxy) };
+}
 
 function initIpc(ctx) {
   const { store, viewManager, unreadTracker, indicator, notifications, tray, appLock } = ctx;
@@ -446,12 +465,14 @@ function initIpc(ctx) {
     return true;
   });
 
-  handle(CH.LINK_CREATE, (_event, data) => store.createLink(data));
+  handle(CH.LINK_CREATE, (_event, data) => store.createLink(cleanProxyPatch(data)));
 
   handle(CH.LINK_UPDATE, (_event, id, patch) => {
     const wasActive = viewManager.getActiveId() === id;
+    patch = cleanProxyPatch(patch);
     const link = store.updateLink(id, patch);
     if (link) {
+      if (patch && patch.proxy) applyProxyChanges();
       if (patch && patch.enabled === false) {
         // Hidden apps behave as though they don't exist — drop the live
         // view so the memory is actually freed, not just kept off-screen.
@@ -571,7 +592,17 @@ function initIpc(ctx) {
 
   handle(CH.SETTINGS_UPDATE, (_event, patch) => {
     if (Object.prototype.hasOwnProperty.call(patch, 'highlightKeywords')) patch = { ...patch, highlightKeywords: cleanKeywords(patch.highlightKeywords) };
+    if (Object.prototype.hasOwnProperty.call(patch, 'proxyServer')) {
+      const value = typeof patch.proxyServer === 'string' ? patch.proxyServer.trim() : '';
+      patch = { ...patch, proxyServer: proxy.isValidProxyServer(value) ? value : '' };
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'globalHotkey')) {
+      const value = typeof patch.globalHotkey === 'string' ? patch.globalHotkey.trim() : '';
+      patch = { ...patch, globalHotkey: /^[A-Za-z0-9+]{0,60}$/.test(value) ? value : '' };
+    }
     const settings = store.updateSettings(patch);
+    if (Object.prototype.hasOwnProperty.call(patch, 'proxyServer')) applyProxyChanges();
+    if (Object.prototype.hasOwnProperty.call(patch, 'globalHotkey') && ctx.applyHotkey) ctx.applyHotkey(true);
     if (Object.prototype.hasOwnProperty.call(patch, 'startWithOS')) autolaunch.syncAutoLaunch(store);
     if (Object.prototype.hasOwnProperty.call(patch, 'showTrayIcon')) {
       if (patch.showTrayIcon) tray.create(); else tray.destroy();
@@ -598,9 +629,79 @@ function initIpc(ctx) {
     unreadTracker.clear();
     ctx.lastCounts.clear();
     const state = store.importJSON(prepared.json);
+    applyProxyChanges();
     vaultApi.mergeImported(prepared.payload);
     tray.refreshMenu();
     return state;
+  });
+
+  // Proxy settings changed (global or per link): update every link session
+  // that is set up already, and reload the links whose proxy really changed.
+  function applyProxyChanges() {
+    const changed = proxy.reapplyAll(store, (partition) => session.fromPartition(partition));
+    for (const id of changed) {
+      if (viewManager.isLoaded(id)) viewManager.reload(id);
+    }
+  }
+
+  // ---- downloads list ----
+  handle(CH.DOWNLOADS_LIST, () => downloads.list());
+  handle(CH.DOWNLOADS_ACT, (_event, id, action) => {
+    if (!Number.isInteger(id) || !['open', 'show', 'cancel', 'remove'].includes(action)) return false;
+    return downloads.act(id, action);
+  });
+  handle(CH.DOWNLOADS_CLEAR, () => downloads.clearFinished());
+
+  // ---- screenshot / print / PDF of the active link ----
+  const toastShell = (type, message) => sendToShell(ctx, CH.SHELL_TOAST, { type, message });
+  const activeContents = () => {
+    const id = viewManager.getActiveId();
+    const view = id ? viewManager.getView(id) : null;
+    return view && !view.webContents.isDestroyed() ? view.webContents : null;
+  };
+
+  handle(CH.PAGE_SCREENSHOT, async (_event, mode) => {
+    if (mode !== 'visible' && mode !== 'full') return false;
+    const wc = activeContents();
+    if (!wc) return false;
+    try {
+      const png = await pageOutput.captureScreenshot(wc, mode);
+      const saved = await pageOutput.saveBuffer(ctx.mainWindow, wc, png, 'png', 'Save screenshot');
+      if (saved) toastShell('success', `Screenshot saved: ${path.basename(saved)}`);
+      return !!saved;
+    } catch (err) {
+      toastShell('error', `Screenshot failed: ${err.message}`);
+      return false;
+    }
+  });
+
+  handle(CH.PAGE_PRINT, async () => {
+    const wc = activeContents();
+    if (!wc) return false;
+    try {
+      return await pageOutput.printPage(wc);
+    } catch (err) {
+      // "Failed to enumerate printers" = Windows has no running Print Spooler service.
+      const noPrinters = /enumerate printers/i.test(err.message);
+      toastShell('error', noPrinters
+        ? 'Printing is off: the Windows Print Spooler service is not running. "Save as PDF" still works.'
+        : `Print failed: ${err.message}`);
+      return false;
+    }
+  });
+
+  handle(CH.PAGE_PDF, async () => {
+    const wc = activeContents();
+    if (!wc) return false;
+    try {
+      const pdf = await pageOutput.pagePdf(wc);
+      const saved = await pageOutput.saveBuffer(ctx.mainWindow, wc, pdf, 'pdf', 'Save as PDF');
+      if (saved) toastShell('success', `PDF saved: ${path.basename(saved)}`);
+      return !!saved;
+    } catch (err) {
+      toastShell('error', `Could not save PDF: ${err.message}`);
+      return false;
+    }
   });
 
   handle(CH.DND_SET, (_event, patch) => {

@@ -19,6 +19,15 @@ function close() {
   window.myApps.send('ui:modal-open', false);
 }
 
+function escapeAttr(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Same rule as src/main/proxy.js: [scheme://]host:port, no user name/password.
+function isValidProxyServer(value) {
+  return /^(?:(?:https?|socks4|socks5):\/\/)?(?:[A-Za-z0-9._-]+|\[[0-9A-Fa-f:]+\]):\d{1,5}$/.test((value || '').trim());
+}
+
 function defaultDraft() {
   return {
     name: '',
@@ -28,6 +37,7 @@ function defaultDraft() {
     reloadMinutes: 0,
     icon: { mode: 'auto', path: null, url: null, fallbackLetter: null, fallbackColor: '#3b82f6' },
     userAgent: null,
+    proxy: { mode: 'global', server: '' },
     muted: false,
     keepPlaying: false,
     openOnStartup: false,
@@ -54,6 +64,7 @@ function draftFromLink(link) {
     reloadMinutes: link.reloadMinutes || 0,
     icon: link.icon,
     userAgent: link.userAgent,
+    proxy: link.proxy || { mode: 'global', server: '' },
     muted: link.muted,
     keepPlaying: link.keepPlaying,
     openOnStartup: link.openOnStartup,
@@ -122,6 +133,16 @@ function generalTabHtml() {
       <div class="field">
         <label>Custom User-Agent (optional)</label>
         <input type="text" id="lk-ua" value="${d.userAgent || ''}" placeholder="Leave blank to use the cleaned default" />
+      </div>
+      <div class="field">
+        <label>Proxy</label>
+        <select id="lk-proxy-mode">
+          <option value="global" ${d.proxy.mode === 'global' ? 'selected' : ''}>Use the global proxy (Settings → Network)</option>
+          <option value="none" ${d.proxy.mode === 'none' ? 'selected' : ''}>No proxy (connect directly)</option>
+          <option value="custom" ${d.proxy.mode === 'custom' ? 'selected' : ''}>Use this proxy:</option>
+        </select>
+        <input type="text" id="lk-proxy-server" value="${escapeAttr(d.proxy.server || '')}" placeholder="http://host:8080 or socks5://host:1080" style="margin-top:6px;${d.proxy.mode === 'custom' ? '' : 'display:none;'}" />
+        <div class="hint" id="lk-proxy-hint">This link's own choice wins over the global proxy. Changing it reloads the link. Proxies that ask for a user name and password are not supported.</div>
       </div>
       <div class="checkbox-row"><input type="checkbox" id="lk-open-external" ${d.navigation.openExternal ? 'checked' : ''} /><label for="lk-open-external">Open unrelated links in the default browser</label></div>
       <div class="checkbox-row"><input type="checkbox" id="lk-block-ads" ${d.navigation.blockAds !== false ? 'checked' : ''} /><label for="lk-block-ads">Block ads and trackers</label></div>
@@ -289,6 +310,11 @@ function wireGeneralTab() {
   bind('lk-notif-sound', 'change', (el) => el.checked, (v) => { draft.notifications.sound = v; });
   bind('lk-notif-synth', 'change', (el) => el.value, (v) => { draft.notifications.synthesize = v; });
   bind('lk-ua', 'input', (el) => el.value.trim() || null, (v) => { draft.userAgent = v; });
+  bind('lk-proxy-mode', 'change', (el) => el.value, (v) => {
+    draft.proxy.mode = v;
+    document.getElementById('lk-proxy-server').style.display = v === 'custom' ? '' : 'none';
+  });
+  bind('lk-proxy-server', 'input', (el) => el.value.trim(), (v) => { draft.proxy.server = v; });
   bind('lk-open-external', 'change', (el) => el.checked, (v) => { draft.navigation.openExternal = v; });
   // Setting this by hand counts as a decision too, same as answering the
   // live Allow/Block prompt — either way we shouldn't ask again later.
@@ -422,6 +448,10 @@ export function openLinkDialog(link) {
 
   document.getElementById('lk-save').addEventListener('click', async () => {
     if (!draft.url.trim()) { alert('Please enter a URL.'); return; }
+    if (draft.proxy.mode === 'custom' && !isValidProxyServer(draft.proxy.server)) {
+      alert('Enter the proxy as host:port, for example http://127.0.0.1:8080 or socks5://127.0.0.1:1080.');
+      return;
+    }
     if (editingLink) {
       await window.myApps.invoke('link:update', editingLink.id, draft);
     } else {

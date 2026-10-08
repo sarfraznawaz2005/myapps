@@ -119,6 +119,11 @@ function generalSection(s) {
       ${checkboxRow('st-start-min', 'Start minimized', s.startMinimized)}
       ${checkboxRow('st-close-tray', 'Close button minimizes to tray', s.closeToTray)}
       ${checkboxRow('st-show-tray', 'Show tray icon', s.showTrayIcon)}
+      <div class="field">
+        <label>Global key to show or hide My Apps</label>
+        <input type="text" id="st-global-hotkey" value="${escapeHtml(s.globalHotkey || '')}" placeholder="Super+Ctrl+Up" />
+      </div>
+      <div class="hint" id="st-hotkey-hint">Works from any app. "Super" is the Windows key. Examples: Super+Ctrl+Up, Ctrl+Alt+M. Win+Shift+Up cannot be used: Windows keeps it. Leave blank to turn it off. If Windows already uses the key, pick another.</div>
     </div>
     <div class="settings-section">
       <h3>Browsing</h3>
@@ -140,7 +145,12 @@ function generalSection(s) {
         <label>Custom DNS-over-HTTPS URL</label>
         <input type="text" id="st-dns-custom-server" value="${escapeHtml(s.dnsCustomServer || '')}" placeholder="https://dns.example.com/dns-query" />
       </div>
-      <div class="hint">Applies to every link opened in this app. Uses DNS-over-HTTPS, so lookups are encrypted.</div>
+      <div class="hint">Applies to every link opened in this app. Uses DNS-over-HTTPS, so lookups are encrypted. DNS cannot be set for one link, because it is shared by the whole app.</div>
+      <div class="field">
+        <label>Proxy for all links</label>
+        <input type="text" id="st-proxy-server" value="${escapeHtml(s.proxyServer || '')}" placeholder="http://host:8080 or socks5://host:1080" />
+      </div>
+      <div class="hint" id="st-proxy-hint">Leave blank to use the Windows proxy settings. A link can use its own proxy, or none, in Edit → Advanced. That choice wins over this one. Proxies that ask for a user name and password are not supported.</div>
     </div>
     <div class="settings-section">
       <h3>Location</h3>
@@ -598,6 +608,37 @@ function wireSection(s) {
   if (dnsCustomEl) {
     dnsCustomEl.addEventListener('change', () => {
       window.myApps.invoke('settings:update', { dnsCustomServer: dnsCustomEl.value.trim() });
+    });
+  }
+
+  const proxyEl = document.getElementById('st-proxy-server');
+  const proxyHint = document.getElementById('st-proxy-hint');
+  if (proxyEl) {
+    proxyEl.addEventListener('change', () => {
+      const value = proxyEl.value.trim();
+      if (value && !/^(?:(?:https?|socks4|socks5):\/\/)?(?:[A-Za-z0-9._-]+|\[[0-9A-Fa-f:]+\]):\d{1,5}$/.test(value)) {
+        proxyHint.textContent = 'Enter as host:port, for example http://127.0.0.1:8080 or socks5://127.0.0.1:1080.';
+        proxyHint.style.color = 'var(--danger)';
+        return;
+      }
+      proxyHint.style.color = '';
+      proxyHint.textContent = 'Saved. Links that use the global proxy reload now.';
+      window.myApps.invoke('settings:update', { proxyServer: value });
+    });
+  }
+
+  const hotkeyEl = document.getElementById('st-global-hotkey');
+  const hotkeyHint = document.getElementById('st-hotkey-hint');
+  if (hotkeyEl) {
+    hotkeyEl.addEventListener('change', () => {
+      const value = hotkeyEl.value.trim();
+      if (!/^[A-Za-z0-9+]{0,60}$/.test(value)) {
+        hotkeyHint.textContent = 'Use key names joined by +, for example Super+Ctrl+Up or Ctrl+Alt+M.';
+        hotkeyHint.style.color = 'var(--danger)';
+        return;
+      }
+      hotkeyHint.style.color = '';
+      window.myApps.invoke('settings:update', { globalHotkey: value });
     });
   }
 

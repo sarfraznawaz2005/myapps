@@ -4,6 +4,7 @@ const path = require('path');
 const { EventEmitter } = require('events');
 const { WebContentsView, BrowserWindow, shell } = require('electron');
 const { getLinkSession } = require('./sessions');
+const { proxyReady } = require('./proxy');
 const { attachEditContextMenu, wirePopupSessions } = require('./editContextMenu');
 const { TOOLBAR_HEIGHT, SIDEBAR_COLLAPSED_WIDTH } = require('./constants');
 
@@ -268,8 +269,12 @@ class ViewManager extends EventEmitter {
     // user has actually switched to that tab.
     wc.setAudioMuted(true);
     // Before the first load, so the very first request already says "mobile".
+    // A first-time proxy (see proxy.js) must be set before the first request.
+    const ready = proxyReady(link.partition);
     if (link.viewMode === 'mobile') {
-      this._applyViewMode(id).then(() => { if (!wc.isDestroyed()) wc.loadURL(link.url); });
+      this._applyViewMode(id).then(() => ready).then(() => { if (!wc.isDestroyed()) wc.loadURL(link.url); });
+    } else if (ready) {
+      ready.then(() => { if (!wc.isDestroyed()) wc.loadURL(link.url); });
     } else {
       wc.loadURL(link.url);
     }

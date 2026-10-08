@@ -20,6 +20,11 @@ No pre-made service templates. Every link is a URL you type in yourself.
 - **Dark mode** — moon/sun button in the toolbar forces a dark look on the current link; remembered per link across restarts.
 - **Keyword highlighter** — highlighter button in the toolbar; one global list of words, highlighted automatically on every page (including pages that change after load). Each keyword needs at least 3 characters. Empty list = off.
 - **WhatsApp extras** — on any web.whatsapp.com link: blur names/photos/messages, hide online status, view statuses privately, restore deleted messages, online notifications, chat with a number not in your contacts. Chosen per link from a toolbar button that shows only on WhatsApp.
+- **Proxy per link** — Settings → Network sets a proxy for every link; Edit → Advanced lets one link use its own proxy or none, which wins over the global one. DNS stays global (the engine shares one resolver). Proxies that need a user name and password are not supported.
+- **Global key** — one system-wide key (default `Win+Ctrl+Up`, change it in Settings → General) shows or hides the app. `Win+Shift+Up` cannot be registered: Windows keeps it.
+- **Downloads list** — toolbar button; shows this run's downloads with progress, Open, Show in folder and Cancel.
+- **Screenshot** — toolbar button: visible area or whole page (whole page is capped at 16384 px tall) saved as PNG.
+- **Print / PDF** — toolbar button: print the page or save it as a PDF.
 - **Userscripts** — your own JavaScript, run on pages matching a URL pattern.
 - **Startup commands** — run any shell command in the background when the app starts (e.g. to launch a locally-hosted service).
 - **Settings export/import** — one JSON file for links, groups, settings, userscripts, and commands.

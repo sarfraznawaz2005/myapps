@@ -39,6 +39,12 @@ function faviconMarkup(link, loading) {
   return letter.toUpperCase();
 }
 
+function isAsleep(linkId) {
+  const state = getState();
+  const status = state.linkStatus[linkId] || {};
+  return status.hibernated != null ? status.hibernated : !state.loadedLinkIds.includes(linkId);
+}
+
 function statusMarkup(link) {
   const state = getState();
   const unread = state.unread[link.id] || {};
@@ -55,7 +61,7 @@ function statusMarkup(link) {
   // simply never opened yet this session. linkStatus.hibernated tracks live
   // load/hibernate transitions; loadedLinkIds covers links that have never
   // fired either transition (never-opened links have no linkStatus entry).
-  const asleep = status.hibernated != null ? status.hibernated : !state.loadedLinkIds.includes(link.id);
+  const asleep = isAsleep(link.id);
   if (asleep) {
     const label = typeof unread.count === 'number'
       ? `last known: ${unread.count}`
@@ -217,7 +223,14 @@ function wireRowEvents() {
 
   listEl.querySelectorAll('.link-row').forEach((el) => {
     const id = el.dataset.linkId;
-    el.addEventListener('click', () => window.myApps.invoke('link:activate', id));
+    // Awake links open on single click. Asleep links need a double click,
+    // so a stray click does not wake them up.
+    el.addEventListener('click', () => {
+      if (!isAsleep(id)) window.myApps.invoke('link:activate', id);
+    });
+    el.addEventListener('dblclick', () => {
+      if (isAsleep(id)) window.myApps.invoke('link:activate', id);
+    });
     el.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       window.myApps.invoke('menu:link-context', id);

@@ -85,6 +85,12 @@ class ViewManager extends EventEmitter {
     // App lock: while true no view is created or shown (see setLocked).
     this.locked = false;
     this._hiddenPopups = [];
+    // Coming back to the app (from another window, a toast, a popup) can leave
+    // the page without real focus; sites then treat it as inactive and pause
+    // a video the instant you press play. Hand focus back to the page.
+    if (mainWindow && typeof mainWindow.on === 'function') {
+      mainWindow.on('focus', () => this.focusActive());
+    }
   }
 
   _link(id) {
@@ -421,6 +427,7 @@ class ViewManager extends EventEmitter {
     }
     this.mainWindow.contentView.addChildView(view);
     view.setVisible(true);
+    this.focusActive();
   }
 
   // The width the sidebar has when it is showing (narrow when collapsed).

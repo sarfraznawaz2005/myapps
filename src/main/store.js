@@ -45,6 +45,7 @@ function defaultSettings() {
     manualLocation: '', // 'lat,lon' — when set, sent to links instead of asking Windows
     trayHintShown: false,
     autoLaunchInitialized: false,
+    autoUpdateCheck: true, // look for a new version at start and every 6 hours
   };
 }
 

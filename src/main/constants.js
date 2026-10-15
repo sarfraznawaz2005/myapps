@@ -16,6 +16,11 @@ const CH = {
   APP_GET_STATE: 'app:get-state',
   APP_QUIT: 'app:quit',
   APP_CHECK_UPDATE: 'app:check-update',
+  UPDATE_STATE: 'update:state',
+  UPDATE_DOWNLOAD: 'update:download',
+  UPDATE_INSTALL: 'update:install',
+  UPDATE_AUTO_CHECK: 'update:auto-check',
+  UPDATE_OPEN_RELEASES: 'update:open-releases',
   APP_OPEN_EXTERNAL_URL: 'app:open-external-url',
 
   LINK_CREATE: 'link:create',

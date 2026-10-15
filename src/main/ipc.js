@@ -12,7 +12,7 @@ const shortcuts = require('./shortcuts');
 const hibernationMod = require('./hibernation');
 const geolocation = require('./geolocation');
 const permissionPrompt = require('./permissionPrompt');
-const updateCheck = require('./updateCheck');
+const updater = require('./updater');
 const passwords = require('./passwords');
 const { applyDnsSettings } = require('./dns');
 const proxy = require('./proxy');
@@ -458,7 +458,22 @@ function initIpc(ctx) {
     app.quit();
   });
 
-  handle(CH.APP_CHECK_UPDATE, () => updateCheck.checkForUpdate());
+  handle(CH.APP_CHECK_UPDATE, () => updater.checkForUpdate());
+  handle(CH.UPDATE_STATE, () => updater.getUpdateState());
+  handle(CH.UPDATE_DOWNLOAD, () => updater.downloadUpdate().catch((e) => ({ ...updater.getUpdateState(), download: { phase: 'error', progress: 0, error: String((e && e.message) || e) } })));
+  handle(CH.UPDATE_INSTALL, () => {
+    try {
+      updater.installUpdate();
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  });
+  handle(CH.UPDATE_AUTO_CHECK, (_event, on) => updater.setAutoCheck(!!on));
+  handle(CH.UPDATE_OPEN_RELEASES, () => {
+    navigation.openExternal(updater.RELEASES_URL);
+    return true;
+  });
 
   handle(CH.APP_OPEN_EXTERNAL_URL, (_event, url) => {
     if (typeof url === 'string' && /^https:\/\//.test(url)) navigation.openExternal(url);

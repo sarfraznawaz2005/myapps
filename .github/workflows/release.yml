@@ -29,11 +29,22 @@ jobs:
       - name: Build (Setup + portable zip)
         run: npm run dist -- --publish never
 
+      - name: Write SHA256SUMS.txt
+        shell: pwsh
+        run: |
+          $lines = Get-ChildItem dist/MyApps-Setup-*.exe, dist/MyApps-*-portable.zip | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          }
+          [System.IO.File]::WriteAllText("$PWD/dist/SHA256SUMS.txt", ($lines -join "`n") + "`n")
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.ref_name }}
           generate_release_notes: true
           files: |
-            dist/*.exe
-            dist/*.zip
+            dist/MyApps-Setup-*.exe
+            dist/MyApps-Setup-*.exe.blockmap
+            dist/MyApps-*-portable.zip
+            dist/latest.yml
+            dist/SHA256SUMS.txt

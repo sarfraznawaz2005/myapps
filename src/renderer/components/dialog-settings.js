@@ -512,26 +512,46 @@ function dataSection() {
   `;
 }
 
-async function aboutSection() {
-  const result = await window.myApps.invoke('app:check-update');
-  const current = escapeHtml(result.currentVersion || '?');
+let updateState = null;
 
-  let updateHtml;
-  if (result.ok && result.hasUpdate) {
-    updateHtml = `
+function updateBlock(u) {
+  const d = u.download;
+  const busy = d.phase === 'downloading' || d.phase === 'verifying';
+  const latest = u.latest;
+  let html = '';
+  if (u.available && latest) {
+    const notes = latest.notes ? `<div class="hint" style="margin-top:6px;white-space:pre-wrap;max-height:140px;overflow:auto;">${escapeHtml(latest.notes)}</div>` : '';
+    let action;
+    if (u.app.mode === 'dev') action = '<div class="hint" style="margin-top:6px;">Updates install only in the built app.</div>';
+    else if (d.phase === 'ready') action = '<button class="btn primary small" id="about-install-btn">Restart and install</button>';
+    else if (busy) action = `<div class="hint" style="margin-top:6px;">${d.phase === 'verifying' ? 'Checking the download…' : `Downloading… ${d.progress}%`}</div>`;
+    else if (!latest.assetName) action = '<div class="hint" style="margin-top:6px;">This release has no file for your copy. Use the Releases page.</div>';
+    else action = '<button class="btn primary small" id="about-download-btn">Download update</button>';
+    const err = d.error ? `<div class="hint" style="margin-top:6px;color:var(--danger,#e5484d);">${escapeHtml(d.error)}</div>` : '';
+    html += `
       <div class="readout" style="margin-top:10px;">
-        <strong>Update available: v${escapeHtml(result.latestVersion)}</strong>
-        <div style="margin-top:6px;">
-          <button class="btn primary small" id="about-update-btn" data-url="${escapeHtml(result.url)}">Download</button>
-        </div>
-      </div>
-    `;
-  } else if (result.ok) {
-    updateHtml = `<div class="hint" style="margin-top:10px;">You're on the latest version.</div>`;
-  } else {
-    updateHtml = `<div class="hint" style="margin-top:10px;">Couldn't check for updates.</div>`;
+        <strong>Update available: v${escapeHtml(latest.version)}</strong>
+        ${notes}
+        <div style="margin-top:8px;">${action}</div>
+        ${err}
+      </div>`;
+  } else if (u.checkError) {
+    html += `<div class="hint" style="margin-top:10px;">Couldn't check for updates: ${escapeHtml(u.checkError)}</div>`;
+  } else if (u.checkedAt) {
+    html += '<div class="hint" style="margin-top:10px;">You’re on the latest version.</div>';
   }
+  html += `
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn small" id="about-check-btn" ${u.checking || busy ? 'disabled' : ''}>${u.checking ? 'Checking…' : 'Check for updates'}</button>
+      <button class="btn small" id="about-releases-btn">Releases page</button>
+    </div>
+    <div style="margin-top:10px;">${checkboxRow('about-auto-check', 'Check for updates automatically', u.autoCheck)}</div>`;
+  return html;
+}
 
+async function aboutSection() {
+  updateState = await window.myApps.invoke('update:state');
+  const u = updateState;
   return `
     <div class="settings-section">
       <h3>About My Apps</h3>
@@ -540,11 +560,41 @@ async function aboutSection() {
         and get per-link unread badges, notifications, and true hibernation — without the overhead
         of a full framework-based shell.
       </p>
-      <div class="hint">Version <strong>${current}</strong></div>
-      ${updateHtml}
+      <div class="hint">Version <strong>${escapeHtml(u.app.version || '?')}</strong></div>
+      <div id="about-update">${updateBlock(u)}</div>
     </div>
   `;
 }
+
+function wireAbout() {
+  const el = (id) => document.getElementById(id);
+  const run = async (channel, ...args) => {
+    const next = await window.myApps.invoke(channel, ...args);
+    if (next && next.app) setUpdateState(next);
+    return next;
+  };
+  if (el('about-check-btn')) el('about-check-btn').addEventListener('click', () => run('app:check-update'));
+  if (el('about-download-btn')) el('about-download-btn').addEventListener('click', () => run('update:download'));
+  if (el('about-releases-btn')) el('about-releases-btn').addEventListener('click', () => window.myApps.invoke('update:open-releases'));
+  if (el('about-auto-check')) el('about-auto-check').addEventListener('change', (e) => run('update:auto-check', e.target.checked));
+  if (el('about-install-btn')) {
+    el('about-install-btn').addEventListener('click', async () => {
+      const res = await window.myApps.invoke('update:install');
+      if (res && !res.ok) showToast({ type: 'error', message: res.error || 'Could not install the update.' });
+    });
+  }
+}
+
+// Redraws only the update box, so other parts of the About page keep their place.
+function setUpdateState(u) {
+  updateState = u;
+  const box = document.getElementById('about-update');
+  if (!box || activeSection !== 'about') return;
+  box.innerHTML = updateBlock(u);
+  wireAbout();
+}
+
+window.myApps.on('shell:update', setUpdateState);
 
 async function renderSection() {
   const s = getState().settings;
@@ -859,10 +909,7 @@ function wireSection(s) {
     });
   }
 
-  const updateBtn = document.getElementById('about-update-btn');
-  if (updateBtn) {
-    updateBtn.addEventListener('click', () => window.myApps.invoke('app:open-external-url', updateBtn.dataset.url));
-  }
+  wireAbout();
 
   const importBtn = document.getElementById('st-import');
   const importFile = document.getElementById('st-import-file');

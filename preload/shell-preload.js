@@ -6,7 +6,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // any channel not in one of these three sets is silently rejected.
 
 const INVOKE_CHANNELS = new Set([
-  'app:get-state', 'app:quit', 'app:check-update', 'app:open-external-url',
+  'app:get-state', 'app:quit', 'app:check-update', 'update:state', 'update:download', 'update:install', 'update:auto-check', 'update:open-releases', 'app:open-external-url',
   'link:create', 'link:update', 'link:delete', 'link:reorder', 'link:activate',
   'link:hibernate', 'link:reload', 'link:clear-data', 'link:devtools', 'link:zoom', 'link:view-mode', 'link:dark-mode',
   'link:whatsapp-get', 'link:whatsapp-set', 'link:whatsapp-chat',
@@ -33,7 +33,7 @@ const ON_CHANNELS = new Set([
   'shell:state', 'shell:unread', 'shell:aggregate', 'shell:nav',
   'shell:link-status', 'shell:favicon', 'shell:audio', 'shell:active',
   'shell:toast', 'shell:open-dialog', 'shell:permission-prompt', 'shell:find-result',
-  'shell:lock', 'shell:sidebar-hidden', 'shell:downloads',
+  'shell:lock', 'shell:sidebar-hidden', 'shell:downloads', 'shell:update',
 ]);
 
 // When the app starts locked, main passes --app-locked so the shell is

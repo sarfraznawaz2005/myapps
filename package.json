@@ -47,7 +47,8 @@
           ]
         }
       ],
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "artifactName": "MyApps-${version}-portable.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -55,10 +56,17 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "artifactName": "${productName}-Setup-${version}.${ext}"
+      "artifactName": "MyApps-Setup-${version}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "sarfraznawaz2005",
+      "repo": "myapps",
+      "releaseType": "release"
     }
   },
   "dependencies": {
-    "@ghostery/adblocker-electron": "^2.18.2"
+    "@ghostery/adblocker-electron": "^2.18.2",
+    "electron-updater": "^6.8.9"
   }
 }

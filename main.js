@@ -23,6 +23,7 @@ const { startDevReload } = require('./src/main/devReload');
 const { runStartupCommands } = require('./src/main/startupCommands');
 const { applyDnsSettings } = require('./src/main/dns');
 const downloads = require('./src/main/downloads');
+const { startUpdateChecks, stopUpdateChecks } = require('./src/main/updater');
 const { CH } = require('./src/main/constants');
 
 // Must be called before whenReady(), and must match build.appId in
@@ -171,6 +172,7 @@ if (!gotLock) {
     });
 
     initIpc(ctx);
+    startUpdateChecks(ctx);
 
     // layoutViews() runs synchronously off these events — never debounced,
     // or resizing gets the classic BrowserView black-gutter lag.
@@ -284,6 +286,7 @@ if (!gotLock) {
       hibernationController.destroy();
       periodicReload.destroy();
       tray.destroy();
+      stopUpdateChecks();
     });
 
     app.on('window-all-closed', () => {

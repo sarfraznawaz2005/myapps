@@ -317,6 +317,14 @@ class ViewManager extends EventEmitter {
     return true;
   }
 
+  // True while the user is looking at this link: it is the shown link and the
+  // app window has focus. Periodic reload skips such a link so work is not lost.
+  isInUse(id) {
+    if (this.locked || id !== this.activeId) return false;
+    const win = this.mainWindow;
+    return !!(win && !win.isDestroyed() && win.isFocused());
+  }
+
   // Give the active page real keyboard focus. A click on the sidebar leaves
   // focus in the shell, so the page reports document.hasFocus() === false and
   // sites like WhatsApp Web never mark what you are looking at as read (their

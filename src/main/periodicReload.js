@@ -12,7 +12,8 @@ function periodMs(link) {
 
 // Reloads a link's page every N minutes (Edit dialog > Periodic reload; 0 = off).
 // Only links that are currently loaded: a hibernated link is off, and starts its
-// clock again when it wakes. The clock restarts on every page load, so a page the
+// clock again when it wakes. A link the user is using (shown and the window has
+// focus) is never reloaded, so their work is not lost; it reloads once they leave. The clock restarts on every page load, so a page the
 // user just navigated or reloaded is not reloaded again straight away, and a load
 // that fails is retried once per period, not on every tick.
 class PeriodicReloadController {
@@ -32,7 +33,9 @@ class PeriodicReloadController {
       if (!period || !link.enabled || !this.viewManager.isLoaded(link.id)) continue;
       const last = this.lastAt.get(link.id);
       if (last === undefined) { this.lastAt.set(link.id, now); continue; }
-      if (now - last >= period) {
+      // The user is on this link: do not touch it. The clock keeps its old
+      // value, so the reload happens on the first tick after they leave.
+      if (now - last >= period && !this.viewManager.isInUse(link.id)) {
         this.lastAt.set(link.id, now);
         this.viewManager.reload(link.id);
       }

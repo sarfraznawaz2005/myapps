@@ -114,7 +114,7 @@ function generalTabHtml() {
     <div class="field">
       <label>Periodic reload (minutes, 0 = off)</label>
       <input type="number" id="lk-reload" min="0" max="10080" step="1" value="${d.reloadMinutes || 0}" />
-      <div class="hint">Reloads this link every this many minutes, even while you are using it. A link with periodic reload is never hibernated automatically; you can still hibernate it yourself.</div>
+      <div class="hint">Reloads this link every this many minutes, but never while you are using it (it reloads after you leave). A link with periodic reload is never hibernated automatically; you can still hibernate it yourself.</div>
     </div>
     <div class="checkbox-row"><input type="checkbox" id="lk-muted" ${d.muted ? 'checked' : ''} /><label for="lk-muted">Mute (never notify)</label></div>
     <div class="checkbox-row"><input type="checkbox" id="lk-keep-playing" ${d.keepPlaying ? 'checked' : ''} /><label for="lk-keep-playing">Keep playing audio/video when switching tabs or minimized to tray</label></div>

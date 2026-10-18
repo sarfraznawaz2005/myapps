@@ -243,9 +243,11 @@ describe('periodic reload', () => {
     const reloads = [];
     vm.isLoaded = (id) => loaded.has(id);
     vm.reload = (id) => reloads.push(id);
+    const inUse = new Set();
+    vm.isInUse = (id) => inUse.has(id);
     const ctrl = new PeriodicReloadController({ store: { getState: () => ({ links: [link] }) }, viewManager: vm });
     clearInterval(ctrl.timer); // tests drive tick() by hand
-    return { ctrl, vm, loaded, reloads };
+    return { ctrl, vm, loaded, reloads, inUse };
   }
 
   test('off by default, and junk values count as off', () => {
@@ -268,6 +270,19 @@ describe('periodic reload', () => {
     assert.deepEqual(reloads, ['a']);
     ctrl.tick(t0 + 10 * MIN);
     assert.deepEqual(reloads, ['a', 'a']);
+  });
+
+  test('a link the user is using is skipped, then reloads once they leave', () => {
+    const { ctrl, reloads, inUse } = setup({ id: 'c', enabled: true, reloadMinutes: 5 });
+    const t0 = Date.now();
+    ctrl.lastAt.set('c', t0);
+    inUse.add('c');
+    ctrl.tick(t0 + 5 * MIN);
+    ctrl.tick(t0 + 20 * MIN);
+    assert.deepEqual(reloads, []);
+    inUse.delete('c');
+    ctrl.tick(t0 + 21 * MIN);
+    assert.deepEqual(reloads, ['c']);
   });
 
   test('a page load restarts the clock; a hibernated link is never reloaded', () => {

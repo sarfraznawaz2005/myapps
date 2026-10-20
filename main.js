@@ -179,7 +179,15 @@ if (!gotLock) {
     mainWindow.on('resize', () => viewManager.layout());
     mainWindow.on('maximize', () => viewManager.layout());
     mainWindow.on('unmaximize', () => viewManager.layout());
-    mainWindow.on('restore', () => viewManager.layout());
+    mainWindow.on('restore', () => {
+      viewManager.layout();
+      // After a minimize the page's surface can stay stuck (video stalls and
+      // the site pauses it again and again) until the view is re-attached. The
+      // focus kick below can run before Windows has finished restoring, so
+      // kick again once the window is really back.
+      viewManager.kickActiveView();
+      setTimeout(() => { if (!mainWindow.isDestroyed()) viewManager.kickActiveView(); }, 250);
+    });
 
     // Self-heal a stuck-input state (see ViewManager.kickActiveView) every
     // time the window regains focus, instead of requiring a full

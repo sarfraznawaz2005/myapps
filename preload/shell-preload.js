@@ -27,7 +27,7 @@ const INVOKE_CHANNELS = new Set([
   'pm:manage-list', 'pm:delete', 'pm:clear-all', 'pm:unnever', 'pm:key-set', 'pm:key-clear',
 ]);
 
-const SEND_CHANNELS = new Set(['ui:layout', 'ui:modal-open', 'ui:ready', 'ui:sidebar-action']);
+const SEND_CHANNELS = new Set(['ui:layout', 'ui:modal-open', 'ui:ready', 'ui:sidebar-action', 'ui:toolbar-busy']);
 
 const ON_CHANNELS = new Set([
   'shell:state', 'shell:unread', 'shell:aggregate', 'shell:nav',

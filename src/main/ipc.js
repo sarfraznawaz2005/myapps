@@ -624,6 +624,7 @@ function initIpc(ctx) {
     }
     tray.refreshMenu();
     if (Object.prototype.hasOwnProperty.call(patch, 'autoHideSidebar') && ctx.sidebarAutoHide) ctx.sidebarAutoHide.sync();
+    if (Object.prototype.hasOwnProperty.call(patch, 'autoHideToolbar') && ctx.toolbarAutoHide) ctx.toolbarAutoHide.sync();
     if (Object.prototype.hasOwnProperty.call(patch, 'dnd')) recomputeAggregate(ctx);
     if (Object.prototype.hasOwnProperty.call(patch, 'scrollArrows') || Object.prototype.hasOwnProperty.call(patch, 'highlightKeywords') || Object.prototype.hasOwnProperty.call(patch, 'passwordManager') || Object.prototype.hasOwnProperty.call(patch, 'revealPassword') || Object.prototype.hasOwnProperty.call(patch, 'imageZoom')) broadcastLinkConfig(ctx);
     if (Object.prototype.hasOwnProperty.call(patch, 'dnsProvider') || Object.prototype.hasOwnProperty.call(patch, 'dnsCustomServer')) {
@@ -792,6 +793,11 @@ function initIpc(ctx) {
     if (!SIDEBAR_ACTIONS.has(type) || (id != null && typeof id !== 'string')) return;
     if (ctx.sidebarAutoHide) ctx.sidebarAutoHide.hideNow();
     sendToShell(ctx, CH.SHELL_OPEN_DIALOG, { type, groupId: id || null });
+  });
+
+  // The URL bar or find bar is in use: the auto-hide toolbar must show and stay.
+  ipcMain.on(CH.UI_TOOLBAR_BUSY, (_event, busy) => {
+    if (ctx.toolbarAutoHide) ctx.toolbarAutoHide.setBusy(busy === true);
   });
 
   ipcMain.on(CH.UI_MODAL_OPEN, (_event, isOpen) => {

@@ -183,6 +183,11 @@ function featuresSection(s) {
       <div class="hint">The sidebar goes out of sight and pages use the full width. Move the mouse to the far left edge of the window to bring it back. It hides again when the mouse moves away. This is separate from the collapse button.</div>
     </div>
     <div class="settings-section">
+      <h3>Toolbar</h3>
+      ${checkboxRow('st-autohide-toolbar', 'Hide the toolbar until the mouse goes to the top', s.autoHideToolbar === true)}
+      <div class="hint">The toolbar goes out of sight and pages use the full height. Move the mouse to the top edge of the window to bring it back. It hides again when the mouse moves away. The page moves down a little while the toolbar shows.</div>
+    </div>
+    <div class="settings-section">
       <h3>Page tools</h3>
       ${checkboxRow('st-scroll-arrows', 'Show scroll up/down arrows on sites', s.scrollArrows)}
     </div>
@@ -635,6 +640,7 @@ function wireSection(s) {
     'st-image-zoom': ['imageZoom', 'checked'],
     'st-blur-sidebar': ['blurSidebar', 'checked'],
     'st-autohide-sidebar': ['autoHideSidebar', 'checked'],
+    'st-autohide-toolbar': ['autoHideToolbar', 'checked'],
     'st-overlay-style': ['overlayStyle', 'value'],
     'st-theme': ['theme', 'value'],
     'st-default-hib': ['defaultHibernate', 'value'],

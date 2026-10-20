@@ -95,6 +95,7 @@ const CH = {
   UI_MODAL_OPEN: 'ui:modal-open',
   UI_READY: 'ui:ready',
   UI_SIDEBAR_ACTION: 'ui:sidebar-action',
+  UI_TOOLBAR_BUSY: 'ui:toolbar-busy',
 
   // Main -> shell
   SHELL_STATE: 'shell:state',

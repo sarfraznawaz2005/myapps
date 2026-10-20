@@ -11,6 +11,16 @@ let findOpen = false;
 
 function iconHtml(name) { return icons[name] || ''; }
 
+// The URL bar or find bar is in use: with "auto-hide toolbar" on, the main
+// process must show the toolbar and keep it until this is false again.
+let lastBusy = false;
+function reportBusy() {
+  const busy = urlEditing || findOpen;
+  if (busy === lastBusy) return;
+  lastBusy = busy;
+  window.myApps.send('ui:toolbar-busy', busy);
+}
+
 function render() {
   toolbarEl.innerHTML = `
     <button id="tb-back" title="Back (Alt+Left)">${iconHtml('back')}</button>
@@ -91,8 +101,8 @@ function render() {
   wireFindBar();
 
   const urlInput = document.getElementById('tb-url');
-  urlInput.addEventListener('focus', () => { urlEditing = true; urlInput.select(); });
-  urlInput.addEventListener('blur', () => { urlEditing = false; update(); });
+  urlInput.addEventListener('focus', () => { urlEditing = true; reportBusy(); urlInput.select(); });
+  urlInput.addEventListener('blur', () => { urlEditing = false; reportBusy(); update(); });
   urlInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       window.myApps.invoke('nav:navigate', urlInput.value.trim());
@@ -410,6 +420,7 @@ export function openFindBar() {
   const input = document.getElementById('find-input');
   if (!bar || !input) return;
   findOpen = true;
+  reportBusy();
   bar.classList.add('open');
   input.focus();
   input.select();
@@ -420,6 +431,7 @@ export function closeFindBar() {
   const count = document.getElementById('find-count');
   if (!bar || !findOpen) return;
   findOpen = false;
+  reportBusy();
   bar.classList.remove('open');
   if (count) count.textContent = '';
   window.myApps.invoke('link:find-stop');

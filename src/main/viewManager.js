@@ -84,6 +84,7 @@ class ViewManager extends EventEmitter {
     this.sidebarHidden = false; // auto-hide setting: the sidebar is out of sight (see sidebarAutoHide.js)
     // App lock: while true no view is created or shown (see setLocked).
     this.locked = false;
+    this.toolbarHidden = false; // auto-hide toolbar setting: the pages cover the toolbar
     this._hiddenPopups = [];
   }
 
@@ -443,20 +444,29 @@ class ViewManager extends EventEmitter {
     this.layout();
   }
 
+  // Auto-hide toolbar setting: the pages cover the toolbar (and move down again
+  // while it shows). See toolbarAutoHide.js.
+  setToolbarHidden(hidden) {
+    if (this.toolbarHidden === !!hidden) return;
+    this.toolbarHidden = !!hidden;
+    this.layout();
+  }
+
   layout() {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
     const cb = this.mainWindow.getContentBounds();
     const sidebarWidth = this.sidebarHidden ? 0 : this.sidebarWidth();
+    const top = this.toolbarHidden ? 0 : TOOLBAR_HEIGHT;
     const width = Math.max(0, cb.width - sidebarWidth);
-    const height = Math.max(0, cb.height - TOOLBAR_HEIGHT);
+    const height = Math.max(0, cb.height - top);
     for (const [id, view] of this.views) {
       const link = this._link(id);
       if (link && link.viewMode === 'mobile') {
         const w = Math.min(width, MOBILE_VIEW_WIDTH);
-        view.setBounds({ x: sidebarWidth + Math.floor((width - w) / 2), y: TOOLBAR_HEIGHT, width: w, height });
+        view.setBounds({ x: sidebarWidth + Math.floor((width - w) / 2), y: top, width: w, height });
         this._syncMobileSize(id);
       } else {
-        view.setBounds({ x: sidebarWidth, y: TOOLBAR_HEIGHT, width, height });
+        view.setBounds({ x: sidebarWidth, y: top, width, height });
       }
     }
   }

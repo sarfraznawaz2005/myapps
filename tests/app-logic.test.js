@@ -1025,3 +1025,126 @@ describe('notification clicks', () => {
     assert.equal(sent.length, before);
   });
 });
+
+describe('toolbar auto-hide (hide until the mouse goes to the top)', () => {
+  const { ToolbarAutoHide, HIDE_DELAY_MS } = require('../src/main/toolbarAutoHide');
+  const { TOOLBAR_HEIGHT } = require('../src/main/constants');
+
+  function setup({ enabled = true } = {}) {
+    const settings = { autoHideToolbar: enabled };
+    const ui = { sidebarWidth: 240, sidebarCollapsed: false };
+    const store = { getState: () => ({ settings, ui, links: [] }) };
+    const win = {
+      focused: true, visible: true, minimized: false,
+      isDestroyed: () => false, isVisible: () => win.visible, isMinimized: () => win.minimized, isFocused: () => win.focused,
+      getContentBounds: () => ({ x: 100, y: 50, width: 1200, height: 800 }),
+      getBounds: () => ({ x: 100, y: 20, width: 1200, height: 830 }), // 30px title bar above the content
+    };
+    const vm = new ViewManager({ mainWindow: win, store });
+    const views = [];
+    vm.views.set('A', { setBounds: (b) => views.push(b), webContents: { isDestroyed: () => true } });
+    const cursor = { x: 600, y: 400 };
+    const hide = new ToolbarAutoHide({ store, mainWindow: win, viewManager: vm, getCursor: () => cursor });
+    let clock = 1000;
+    hide.now = () => clock;
+    return { hide, vm, win, cursor, views, settings, advance: (ms) => { clock += ms; } };
+  }
+  const top = (t) => { t.cursor.x = 600; t.cursor.y = 52; }; // 2px below the top of the content
+  const away = (t) => { t.cursor.x = 600; t.cursor.y = 50 + 400; };
+
+  test('off by default', () => {
+    assert.equal(defaultSettings().autoHideToolbar, false);
+  });
+
+  test('turning it on lets the pages cover the toolbar', () => {
+    const t = setup();
+    t.hide.sync();
+    assert.equal(t.vm.toolbarHidden, true);
+    const last = t.views[t.views.length - 1];
+    assert.equal(last.y, 0);
+    assert.equal(last.height, 800);
+    t.hide.stop();
+  });
+
+  test('turning it off puts the toolbar back', () => {
+    const t = setup();
+    t.hide.sync();
+    t.settings.autoHideToolbar = false;
+    t.hide.sync();
+    assert.equal(t.vm.toolbarHidden, false);
+    assert.equal(t.hide.timer, null);
+    const last = t.views[t.views.length - 1];
+    assert.equal(last.y, TOOLBAR_HEIGHT);
+    assert.equal(last.height, 800 - TOOLBAR_HEIGHT);
+  });
+
+  test('the top edge shows the toolbar and moves the pages down', () => {
+    const t = setup();
+    t.hide.sync();
+    t.cursor.y = 50 + 30; t.hide.tick(); // 30px down: not the edge
+    assert.equal(t.vm.toolbarHidden, true);
+    top(t); t.hide.tick();
+    assert.equal(t.vm.toolbarHidden, false);
+    assert.equal(t.views[t.views.length - 1].y, TOOLBAR_HEIGHT);
+    t.hide.stop();
+  });
+
+  test('the window title bar counts as the top edge', () => {
+    const t = setup();
+    t.hide.sync();
+    t.cursor.x = 600; t.cursor.y = 35; // over the title bar (content starts at y 50)
+    t.hide.tick();
+    assert.equal(t.vm.toolbarHidden, false);
+    t.hide.stop();
+  });
+
+  test('a mouse above the title bar or beside the window does not show it', () => {
+    const t = setup();
+    t.hide.sync();
+    t.cursor.x = 600; t.cursor.y = 10; t.hide.tick();
+    assert.equal(t.vm.toolbarHidden, true);
+    t.cursor.x = 50; t.cursor.y = 35; t.hide.tick();
+    assert.equal(t.vm.toolbarHidden, true);
+    t.hide.stop();
+  });
+
+  test('it hides again only after the mouse has been away a moment', () => {
+    const t = setup();
+    t.hide.sync();
+    top(t); t.hide.tick();
+    away(t); t.hide.tick(); // starts the wait
+    t.advance(HIDE_DELAY_MS - 50); t.hide.tick();
+    assert.equal(t.vm.toolbarHidden, false);
+    t.advance(100); t.hide.tick();
+    assert.equal(t.vm.toolbarHidden, true);
+    t.hide.stop();
+  });
+
+  test('it stays while the URL bar or find bar is in use, and Ctrl+L shows it', () => {
+    const t = setup();
+    t.hide.sync();
+    t.hide.setBusy(true); // focus in the URL bar while hidden
+    assert.equal(t.vm.toolbarHidden, false);
+    away(t); t.hide.tick(); t.advance(HIDE_DELAY_MS * 3); t.hide.tick();
+    assert.equal(t.vm.toolbarHidden, false);
+    t.hide.setBusy(false);
+    t.hide.tick(); t.advance(HIDE_DELAY_MS); t.hide.tick();
+    assert.equal(t.vm.toolbarHidden, true);
+    t.hide.stop();
+  });
+
+  test('it does not change while a dialog is open or the window is not in front', () => {
+    const t = setup();
+    t.hide.sync();
+    top(t); t.hide.tick();
+    away(t);
+    t.vm.modalOpen = true;
+    t.hide.tick(); t.advance(HIDE_DELAY_MS * 3); t.hide.tick();
+    assert.equal(t.vm.toolbarHidden, false);
+    t.vm.modalOpen = false;
+    t.win.focused = false;
+    t.hide.tick(); t.advance(HIDE_DELAY_MS * 3); t.hide.tick();
+    assert.equal(t.vm.toolbarHidden, false);
+    t.hide.stop();
+  });
+});

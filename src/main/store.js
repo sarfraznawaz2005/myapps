@@ -37,6 +37,7 @@ function defaultSettings() {
     imageZoom: true, // hover a picture on any site to see it enlarged
     blurSidebar: false, // blur link names and icons in the sidebar until the mouse is over it
     autoHideSidebar: false, // hide the whole sidebar until the mouse goes to the far left edge
+    autoHideToolbar: false, // hide the toolbar until the mouse goes to the top edge (pages move down while it shows)
     confirmDelete: true,
     dnsProvider: 'system', // system | google | cloudflare | custom
     dnsCustomServer: '', // DNS-over-HTTPS URL, used when dnsProvider is 'custom'

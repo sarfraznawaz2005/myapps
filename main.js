@@ -17,6 +17,7 @@ const { attachShortcuts } = require('./src/main/shortcuts');
 const { LinkSwitcher } = require('./src/main/linkSwitcher');
 const { SidebarAutoHide } = require('./src/main/sidebarAutoHide');
 const { SidebarOverlay } = require('./src/main/sidebarOverlay');
+const { ToolbarAutoHide } = require('./src/main/toolbarAutoHide');
 const { SwitcherOverlay } = require('./src/main/switcherOverlay');
 const { initIpc, recomputeAggregate } = require('./src/main/ipc');
 const { startDevReload } = require('./src/main/devReload');
@@ -265,6 +266,17 @@ if (!gotLock) {
     });
     ctx.sidebarAutoHide = sidebarAutoHide;
     sidebarAutoHide.sync();
+
+    // Optional: hide the toolbar until the mouse goes to the top edge (setting autoHideToolbar).
+    const toolbarAutoHide = new ToolbarAutoHide({
+      store,
+      mainWindow,
+      viewManager,
+      getCursor: () => screen.getCursorScreenPoint(),
+      isBlocked: () => linkSwitcher.isOpen,
+    });
+    ctx.toolbarAutoHide = toolbarAutoHide;
+    toolbarAutoHide.sync();
 
     attachShortcuts(mainWindow.webContents, { store, viewManager, mainWindow, appLock, linkSwitcher });
     viewManager.on('loaded', (id) => {

@@ -7,7 +7,7 @@
 //   downloaded, checked against SHA256SUMS.txt, and a small PowerShell script copies
 //   it over the folder after the app closes.
 
-const { app, net } = require('electron');
+const { app, net, Notification } = require('electron');
 const { spawn } = require('child_process');
 const { createHash } = require('crypto');
 const fs = require('fs');
@@ -20,7 +20,7 @@ const LATEST_API = `https://api.github.com/repos/${REPO}/releases/latest`;
 const DOWNLOAD_PREFIX = `https://github.com/${REPO}/releases/download/`;
 const CHECKSUM_FILE = 'SHA256SUMS.txt';
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
-const FIRST_CHECK_MS = 45 * 1000;
+const FIRST_CHECK_MS = 10 * 1000;
 const PORTABLE_DIR = path.join(os.tmpdir(), 'myapps-portable-update');
 const EXE_NAME = 'My Apps.exe';
 
@@ -83,6 +83,7 @@ let portableAsset = null;
 let portableZip = null;
 let timer = null;
 let notifiedVersion = null;
+let updateNotice = null; // kept alive: Electron holds Notification objects weakly (lost clicks)
 
 function push() {
   const w = ctx && ctx.mainWindow;
@@ -147,6 +148,7 @@ async function checkForUpdate(opts = {}) {
           message: `My Apps ${latest.version} is available. Open Settings > About to update.`,
         });
       }
+      notifyUpdate(latest.version);
     }
   } catch (err) {
     const msg = String((err && err.message) || err);
@@ -295,6 +297,29 @@ Start-Sleep -Seconds 2
   });
   child.unref();
   setTimeout(() => app.quit(), 300);
+}
+
+function dndActive() {
+  const dnd = ctx && ctx.store && ctx.store.getState().settings.dnd;
+  return !!(dnd && dnd.enabled && (!dnd.until || Date.now() < dnd.until));
+}
+
+// Windows notification too: the in-app toast is easy to miss (the app may start
+// hidden in the tray, or the toolbar may be auto-hidden). Click opens Settings > About.
+function notifyUpdate(version) {
+  if (!Notification.isSupported() || dndActive()) return;
+  updateNotice = new Notification({
+    title: 'My Apps update available',
+    body: `Version ${version} is available (you have ${state.app.version}). Click to open Settings > About.`,
+    icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
+  });
+  updateNotice.on('click', () => {
+    if (ctx && ctx.showAppWindow) ctx.showAppWindow();
+    const w = ctx && ctx.mainWindow;
+    if (w && !w.isDestroyed()) w.webContents.send('shell:open-dialog', { type: 'settings', section: 'about' });
+  });
+  updateNotice.on('close', () => { updateNotice = null; });
+  updateNotice.show();
 }
 
 function setAutoCheck(on) {

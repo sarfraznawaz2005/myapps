@@ -110,7 +110,7 @@ function onOpenDialog(payload) {
   else if (payload.type === 'add-link') openLinkDialog(null);
   else if (payload.type === 'add-group') openGroupDialog(null);
   else if (payload.type === 'edit-group') { const group = getGroup(payload.groupId); if (group) openGroupDialog(group); }
-  else if (payload.type === 'settings') sidebar.openSettings();
+  else if (payload.type === 'settings') sidebar.openSettings(payload.section);
   else if (payload.type === 'picked-element') {
     window.dispatchEvent(new CustomEvent('__myapps-picked-element', { detail: payload }));
   }

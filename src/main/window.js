@@ -3,6 +3,30 @@
 const path = require('path');
 const { app, BrowserWindow, screen } = require('electron');
 const { attachEditContextMenu } = require('./editContextMenu');
+const { TOOLBAR_HEIGHT } = require('./constants');
+
+// No OS title bar: the toolbar is the title bar. The OS still draws the
+// minimize / maximize / close buttons over the right end of the toolbar
+// (titleBarOverlay), in the toolbar's own colors (see tokens.css --bg-content).
+// While the auto-hide toolbar is hidden the buttons are made see-through: the
+// OS cannot remove them, only paint them in a transparent color. They still take
+// clicks, so toolbarAutoHide.js shows the toolbar as soon as the mouse is over them.
+const HIDDEN_OVERLAY = { color: '#00000000', symbolColor: '#00000000', height: TOOLBAR_HEIGHT };
+
+function titleBarOverlayFor(theme, toolbarHidden = false) {
+  if (toolbarHidden) return { ...HIDDEN_OVERLAY };
+  const light = theme === 'light';
+  return {
+    color: light ? '#ffffff' : '#15181d',
+    symbolColor: light ? '#16181d' : '#e6e8eb',
+    height: TOOLBAR_HEIGHT,
+  };
+}
+
+function applyTitleBarTheme(win, theme, toolbarHidden = false) {
+  if (!win || win.isDestroyed() || typeof win.setTitleBarOverlay !== 'function') return;
+  win.setTitleBarOverlay(titleBarOverlayFor(theme, toolbarHidden));
+}
 
 function validateBounds(bounds) {
   if (!bounds || typeof bounds.x !== 'number' || typeof bounds.y !== 'number') return null;
@@ -26,6 +50,8 @@ function createMainWindow({ store, startHidden, startLocked }) {
     height,
     show: false,
     autoHideMenuBar: true,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: titleBarOverlayFor(store.getState().settings.theme),
     backgroundColor: '#0f1115',
     icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     webPreferences: {
@@ -90,4 +116,4 @@ function createMainWindow({ store, startHidden, startLocked }) {
   return mainWindow;
 }
 
-module.exports = { createMainWindow, validateBounds };
+module.exports = { createMainWindow, validateBounds, titleBarOverlayFor, applyTitleBarTheme };

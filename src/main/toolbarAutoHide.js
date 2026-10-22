@@ -11,7 +11,7 @@ const { TOOLBAR_HEIGHT } = require('./constants');
 // the toolbar, so every toolbar button, menu and dialog keeps working unchanged. The
 // price is that a page is resized each time the toolbar shows or hides.
 //
-// "The top" is the window title bar and the top edge of the page area. The mouse is
+// "The top" is the top edge of the window, and the window buttons at its right end. The mouse is
 // read from the screen itself (not from page events), because a page
 // covers the top edge while the toolbar is hidden and gets the mouse.
 // The toolbar stays while the URL bar or the find bar is in use (setBusy), and while
@@ -22,6 +22,10 @@ const EDGE_PX = 4; // "top edge": this close to the top of the window content
 const EDGE_SLACK_PX = 8; // a window border (or a mouse past the edge) still counts as the edge
 const LEAVE_MARGIN_PX = 24; // how far below the toolbar the mouse must be to count as away
 const HIDE_DELAY_MS = 350;
+// The OS window buttons (minimize, maximize, close) at the right end of the toolbar.
+// While the toolbar is hidden they are see-through but still take clicks, so the
+// mouse over them shows the toolbar at once (no accidental "close" on a page).
+const WINDOW_BUTTONS_PX = 150;
 
 class ToolbarAutoHide {
   // getCursor() -> { x, y } in screen pixels. isBlocked() is true while something else
@@ -89,7 +93,10 @@ class ToolbarAutoHide {
     const insideWidth = x >= 0 && x < frame.width;
 
     if (this.viewManager.toolbarHidden) {
-      if (insideWidth && y >= Math.min(titleTop, -EDGE_SLACK_PX) && y <= EDGE_PX) this.viewManager.setToolbarHidden(false);
+      const top = y >= Math.min(titleTop, -EDGE_SLACK_PX);
+      const atEdge = insideWidth && top && y <= EDGE_PX;
+      const onWindowButtons = insideWidth && top && y <= TOOLBAR_HEIGHT && x >= frame.width - WINDOW_BUTTONS_PX;
+      if (atEdge || onWindowButtons) this.viewManager.setToolbarHidden(false);
       return;
     }
 
@@ -103,4 +110,4 @@ class ToolbarAutoHide {
   }
 }
 
-module.exports = { ToolbarAutoHide, EDGE_PX, HIDE_DELAY_MS, LEAVE_MARGIN_PX };
+module.exports = { ToolbarAutoHide, EDGE_PX, HIDE_DELAY_MS, LEAVE_MARGIN_PX, WINDOW_BUTTONS_PX };

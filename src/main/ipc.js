@@ -19,6 +19,7 @@ const proxy = require('./proxy');
 const downloads = require('./downloads');
 const pageOutput = require('./pageOutput');
 const { hostOf } = require('./viewManager');
+const { applyTitleBarTheme } = require('./window');
 
 const WHATSAPP_SOURCE = fs.readFileSync(
   path.join(__dirname, '..', '..', 'preload', 'whatsapp-main-world.js'),
@@ -623,6 +624,7 @@ function initIpc(ctx) {
       if (patch.showTrayIcon) tray.create(); else tray.destroy();
     }
     tray.refreshMenu();
+    if (Object.prototype.hasOwnProperty.call(patch, 'theme')) applyTitleBarTheme(ctx.mainWindow, settings.theme, !!(ctx.viewManager && ctx.viewManager.toolbarHidden));
     if (Object.prototype.hasOwnProperty.call(patch, 'autoHideSidebar') && ctx.sidebarAutoHide) ctx.sidebarAutoHide.sync();
     if (Object.prototype.hasOwnProperty.call(patch, 'autoHideToolbar') && ctx.toolbarAutoHide) ctx.toolbarAutoHide.sync();
     if (Object.prototype.hasOwnProperty.call(patch, 'dnd')) recomputeAggregate(ctx);

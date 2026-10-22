@@ -332,9 +332,9 @@ function initResizer() {
   });
 }
 
-export async function openSettings() {
+export async function openSettings(section) {
   const { openSettingsDialog } = await import('./dialog-settings.js');
-  openSettingsDialog();
+  openSettingsDialog(section);
 }
 
 export function initSidebar() {

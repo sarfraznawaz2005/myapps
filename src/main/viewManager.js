@@ -7,6 +7,7 @@ const { getLinkSession } = require('./sessions');
 const { proxyReady } = require('./proxy');
 const { attachEditContextMenu, wirePopupSessions } = require('./editContextMenu');
 const { TOOLBAR_HEIGHT, SIDEBAR_COLLAPSED_WIDTH } = require('./constants');
+const { applyTitleBarTheme } = require('./window');
 
 const LINK_PRELOAD = path.join(__dirname, '..', '..', 'preload', 'link-preload.js');
 
@@ -450,6 +451,8 @@ class ViewManager extends EventEmitter {
     if (this.toolbarHidden === !!hidden) return;
     this.toolbarHidden = !!hidden;
     this.layout();
+    // The window buttons sit on the toolbar, so they hide and show with it.
+    applyTitleBarTheme(this.mainWindow, this.store.getState().settings.theme, this.toolbarHidden);
   }
 
   layout() {

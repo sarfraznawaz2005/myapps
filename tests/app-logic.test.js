@@ -1089,6 +1089,19 @@ describe('toolbar auto-hide (hide until the mouse goes to the top)', () => {
     t.hide.stop();
   });
 
+  test('the window buttons hide with the toolbar, and the mouse over them shows it', () => {
+    const t = setup();
+    const overlays = [];
+    t.win.setTitleBarOverlay = (o) => overlays.push(o);
+    t.hide.sync();
+    assert.equal(overlays[overlays.length - 1].symbolColor, '#00000000');
+    t.cursor.x = 100 + 1200 - 40; t.cursor.y = 50 + 20; // over the close button, below the edge
+    t.hide.tick();
+    assert.equal(t.vm.toolbarHidden, false);
+    assert.notEqual(overlays[overlays.length - 1].symbolColor, '#00000000');
+    t.hide.stop();
+  });
+
   test('the window title bar counts as the top edge', () => {
     const t = setup();
     t.hide.sync();

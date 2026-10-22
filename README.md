@@ -275,7 +275,7 @@ Both are in Settings → Features → Sidebar, and both are off by default.
   the sidebar is hidden.
 - **Hide the toolbar until the mouse goes to the top** — off by default. The
   toolbar goes out of sight and the pages use the full window height. Move the
-  mouse over the window title bar (or the top edge) and the pages move down to show it; it
+  mouse to the top edge of the window (or over the window buttons) and the pages move down to show it; it
   hides again about a third of a second after the mouse moves away. It stays
   while the URL bar or find bar is in use (Ctrl+L and Ctrl+F show it) and while a
   dialog or menu is open. Unlike the sidebar, nothing floats over the page: the

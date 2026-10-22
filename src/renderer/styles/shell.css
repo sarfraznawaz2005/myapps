@@ -299,6 +299,16 @@ html.sidebar-only #lock-screen { display: none !important; }
   justify-content: center;
   background: var(--bg-content);
 }
+/* No OS title bar: a strip along the top still moves the window while locked. */
+#lock-screen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--toolbar-h);
+  -webkit-app-region: drag;
+}
 html[data-locked="1"] #lock-screen { display: flex; }
 /* Nothing of the app may show (or be clicked) behind the lock screen. */
 html[data-locked="1"] #shell,
@@ -356,6 +366,9 @@ html[data-locked="1"] #toast-host { display: none !important; }
   align-items: center;
   gap: 4px;
   padding: 0 8px;
+  /* The toolbar is the window title bar: keep clear of the OS window buttons
+     drawn over its right end (env() = the free title bar area; 138px fallback). */
+  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 138px)) + 8px);
   border-bottom: 1px solid var(--border);
   -webkit-app-region: drag;
 }
@@ -537,7 +550,8 @@ html[data-locked="1"] #toast-host { display: none !important; }
 #toast-host {
   position: fixed;
   top: 6px;
-  right: 12px;
+  /* Left of the OS window buttons at the right end of the toolbar (see #toolbar). */
+  right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 138px)) + 12px);
   height: calc(var(--toolbar-h) - 12px);
   z-index: 500;
 }

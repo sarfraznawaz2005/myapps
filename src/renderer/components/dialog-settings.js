@@ -223,7 +223,7 @@ function appearanceSection(s) {
     <div class="settings-section">
       <h3>Toolbar</h3>
       ${checkboxRow('st-autohide-toolbar', 'Hide the toolbar until the mouse goes to the top', s.autoHideToolbar === true)}
-      <div class="hint">The toolbar goes out of sight and pages use the full height. Move the mouse over the window title bar (or the top edge) to bring it back. It hides again when the mouse moves away. The page moves down a little while the toolbar shows.</div>
+      <div class="hint">The toolbar goes out of sight and pages use the full height. Move the mouse to the top edge of the window (or over the window buttons) to bring it back. It hides again when the mouse moves away. The page moves down a little while the toolbar shows.</div>
     </div>
     <div class="settings-section">
       <h3>Taskbar indicator</h3>
@@ -945,8 +945,8 @@ function wireSection(s) {
   }
 }
 
-export function openSettingsDialog() {
-  activeSection = 'links';
+export function openSettingsDialog(section = 'links') {
+  activeSection = section;
   editingUserscriptId = null;
   editingCommandId = null;
   window.myApps.send('ui:modal-open', true);
@@ -974,7 +974,7 @@ export function openSettingsDialog() {
       </div>
       <div class="dialog-split">
         <div class="dialog-tabs vertical">
-          ${sections.map(([id, label]) => `<div class="dialog-tab${id === 'links' ? ' active' : ''}" data-section="${id}">${label}</div>`).join('')}
+          ${sections.map(([id, label]) => `<div class="dialog-tab${id === activeSection ? ' active' : ''}" data-section="${id}">${label}</div>`).join('')}
         </div>
         <div class="dialog-body"></div>
       </div>

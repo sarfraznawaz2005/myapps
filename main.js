@@ -142,6 +142,7 @@ if (!gotLock) {
     const startHidden = autolaunch.wasLaunchedHidden();
     const mainWindow = createMainWindow({ store, startHidden, startLocked: appLock.isLocked() });
     ctx.mainWindow = mainWindow;
+    ctx.showAppWindow = showAppWindow;
 
     const viewManager = new ViewManager({ mainWindow, store });
     ctx.viewManager = viewManager;

@@ -19,6 +19,7 @@ const { SidebarAutoHide } = require('./src/main/sidebarAutoHide');
 const { SidebarOverlay } = require('./src/main/sidebarOverlay');
 const { ToolbarAutoHide } = require('./src/main/toolbarAutoHide');
 const { SwitcherOverlay } = require('./src/main/switcherOverlay');
+const { OfflineIndicator } = require('./src/main/offlineIndicator');
 const { initIpc, recomputeAggregate } = require('./src/main/ipc');
 const { startDevReload } = require('./src/main/devReload');
 const { runStartupCommands } = require('./src/main/startupCommands');
@@ -267,6 +268,9 @@ if (!gotLock) {
     });
     ctx.sidebarAutoHide = sidebarAutoHide;
     sidebarAutoHide.sync();
+
+    // Red "No internet connection" pill while the computer is offline.
+    new OfflineIndicator({ mainWindow }).start();
 
     // Optional: hide the toolbar until the mouse goes to the top edge (setting autoHideToolbar).
     const toolbarAutoHide = new ToolbarAutoHide({

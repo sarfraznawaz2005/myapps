@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; font: 13px/1 "Segoe UI", system-ui, sans-serif; }
+  .pill { box-sizing: border-box; height: 100%; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 8px; background: #d93025; color: #fff; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #fff; animation: blink 1.4s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+</style>
+</head>
+<body><div class="pill"><span class="dot"></span>No internet connection</div></body>
+</html>

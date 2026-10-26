@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Site can't be reached</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #fff; color: #202124; font: 15px/1.5 "Segoe UI", system-ui, sans-serif; }
+  body { display: flex; align-items: center; justify-content: center; }
+  main { width: 560px; max-width: 90vw; }
+  .icon { width: 72px; height: 72px; margin-bottom: 24px; color: #9aa0a6; }
+  h1 { font-size: 24px; font-weight: 500; margin: 0 0 16px; }
+  p { margin: 0 0 12px; color: #5f6368; }
+  b { color: #202124; font-weight: 600; }
+  .code { font-size: 12px; color: #80868b; margin-bottom: 24px; }
+  button { background: #1a73e8; color: #fff; border: 0; border-radius: 4px; padding: 9px 22px; font: inherit; cursor: pointer; }
+  button:hover { background: #1765cc; }
+</style>
+</head>
+<body>
+<main>
+  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/><path d="M2 2l20 20"/>
+  </svg>
+  <h1>This site can’t be reached</h1>
+  <p id="why"></p>
+  <p>Try:</p>
+  <ul id="tips" style="margin:0 0 16px; padding-left:22px; color:#5f6368"></ul>
+  <div class="code" id="code"></div>
+  <button id="reload" type="button">Reload</button>
+</main>
+<script>
+  const q = new URLSearchParams(location.search);
+  const target = q.get('url') || '';
+  const err = q.get('desc') || 'ERR_FAILED';
+  let host = target;
+  try { host = new URL(target).hostname; } catch (e) {}
+  const why = document.getElementById('why');
+  const tips = document.getElementById('tips');
+  const addTip = (t) => { const li = document.createElement('li'); li.textContent = t; tips.appendChild(li); };
+  const b = document.createElement('b');
+  b.textContent = host || 'The site';
+  if (err === 'ERR_NAME_NOT_RESOLVED') {
+    why.append(b, '’s server IP address could not be found.');
+    addTip('Checking the address for typing errors');
+    addTip('Checking your internet connection');
+  } else if (err === 'ERR_INTERNET_DISCONNECTED' || err === 'ERR_NETWORK_CHANGED') {
+    why.append('You are not connected to the internet.');
+    addTip('Checking the network cables, modem and router');
+    addTip('Reconnecting to Wi-Fi');
+  } else if (err === 'ERR_CONNECTION_TIMED_OUT') {
+    why.append(b, ' took too long to respond.');
+    addTip('Checking your connection');
+    addTip('Checking any proxy or firewall');
+  } else {
+    why.append(b, ' refused to connect or could not be reached.');
+    addTip('Checking your connection');
+    addTip('Checking any proxy or firewall');
+  }
+  document.getElementById('code').textContent = err;
+  document.title = (host || 'Page') + ' – can’t be reached';
+  document.getElementById('reload').addEventListener('click', () => { if (target) location.href = target; });
+</script>
+</body>
+</html>

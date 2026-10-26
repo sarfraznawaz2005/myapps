@@ -9,6 +9,7 @@ const { attachEditContextMenu, wirePopupSessions } = require('./editContextMenu'
 const { TOOLBAR_HEIGHT, SIDEBAR_COLLAPSED_WIDTH } = require('./constants');
 const { applyTitleBarTheme } = require('./window');
 
+const ERROR_PAGE = path.join(__dirname, '..', 'renderer', 'error.html');
 const LINK_PRELOAD = path.join(__dirname, '..', '..', 'preload', 'link-preload.js');
 
 // Owns every WebContentsView instance (one per *loaded* link) and lays them
@@ -26,6 +27,15 @@ const DARK_MODE_CSS = `
   html { filter: invert(1) hue-rotate(180deg) !important; background: #fff !important; }
   img, picture, video, canvas { filter: invert(1) hue-rotate(180deg) !important; }
 `;
+
+// If `pageUrl` is our error page, the address that failed to load; else ''.
+function failedUrlOf(pageUrl) {
+  try {
+    const u = new URL(pageUrl);
+    if (u.protocol !== 'file:' || !u.pathname.endsWith('/renderer/error.html')) return '';
+    return u.searchParams.get('url') || '';
+  } catch (_e) { return ''; }
+}
 
 // Pure, so it can be tested. Desktop honours the link's own custom user-agent
 // (Edit dialog); with none, it is the session's normal (Electron-free) one.
@@ -178,7 +188,7 @@ class ViewManager extends EventEmitter {
         loading: wc.isLoading(),
         canGoBack: wc.navigationHistory ? wc.navigationHistory.canGoBack() : wc.canGoBack(),
         canGoForward: wc.navigationHistory ? wc.navigationHistory.canGoForward() : wc.canGoForward(),
-        url: wc.getURL(),
+        url: failedUrlOf(wc.getURL()) || wc.getURL(),
         title: wc.getTitle(),
         error: null,
         crashed: false,
@@ -204,11 +214,15 @@ class ViewManager extends EventEmitter {
     wc.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
       if (!isMainFrame) return;
       if (code === -3) return; // ERR_ABORTED, usually a redirect/cancel, not a real failure
+      if (code === -20) return; // ERR_BLOCKED_BY_CLIENT (ad blocker), not a network problem
+      if (failedUrlOf(url)) return; // our own error page must never loop
       if (!hasLoaded && !firstLoadRetried) {
         firstLoadRetried = true;
         setTimeout(() => { if (!wc.isDestroyed() && !hasLoaded) wc.loadURL(link.url); }, 1000);
         return;
       }
+      // Without this the view stays blank: Electron draws no error page of its own.
+      wc.loadFile(ERROR_PAGE, { query: { url, desc: desc || `ERR_FAILED (${code})` } }).catch(() => {});
       this.emit('status', id, { loading: false, error: desc || `Failed to load (${code})` });
     });
     wc.on('render-process-gone', (_e, details) => {
@@ -645,13 +659,19 @@ class ViewManager extends EventEmitter {
   reload(id) {
     const view = this.views.get(id) || this.ensureView(id);
     if (!view) return false;
-    view.webContents.reload();
+    this._reloadWc(view.webContents);
     return true;
+  }
+
+  // On our error page, "reload" means: try the page that failed.
+  _reloadWc(wc) {
+    const failed = failedUrlOf(wc.getURL());
+    if (failed) wc.loadURL(failed); else wc.reload();
   }
 
   reloadAllLoaded() {
     for (const view of this.views.values()) {
-      if (!view.webContents.isDestroyed()) view.webContents.reload();
+      if (!view.webContents.isDestroyed()) this._reloadWc(view.webContents);
     }
   }
 

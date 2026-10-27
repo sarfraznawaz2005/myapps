@@ -240,6 +240,14 @@ class ViewManager extends EventEmitter {
 
     wc.on('found-in-page', (_e, result) => this.emit('find-result', id, result));
 
+    // A page's fullscreen button (TikTok, YouTube...): the view covers the whole
+    // window, sidebar and toolbar included. The window itself stays as it is.
+    wc.on('enter-html-full-screen', () => { this._fullscreenId = id; this.layout(); });
+    wc.on('leave-html-full-screen', () => {
+      if (this._fullscreenId === id) this._fullscreenId = null;
+      this.layout();
+    });
+
     // OAuth popups: inherit the same partition/session and cleaned UA, never
     // noopener, so cookies set by the popup are visible to the opener — and
     // wirePopupSessions re-applies this same check+session to every window a
@@ -323,6 +331,11 @@ class ViewManager extends EventEmitter {
     const link = this._link(id);
     if (link) this.store.updateLink(id, { lastActiveAt: Date.now() });
     this.emit('active', id);
+    // Window still in the tray (start hidden): no sound or video yet. The
+    // window's 'show' event calls resumeActiveMedia() when the user opens it.
+    if (this.mainWindow && !this.mainWindow.isDestroyed() && !this.mainWindow.isVisible()) {
+      this.suspendActiveMedia();
+    }
     this.focusActive();
     return true;
   }
@@ -469,6 +482,100 @@ class ViewManager extends EventEmitter {
     applyTitleBarTheme(this.mainWindow, this.store.getState().settings.theme, this.toolbarHidden);
   }
 
+  // F11: the active page fills the whole window (or goes back to normal).
+  // The page's best video is drawn into a full-window black layer on top of
+  // the page (so the site's sidebar and buttons are hidden), and the view is
+  // enlarged to cover the sidebar and toolbar. The page's own video keeps
+  // playing underneath, so sound and position stay right. A page with no
+  // video just has its view enlarged.
+  toggleFill() {
+    const id = this.getActiveId();
+    const view = id ? this.views.get(id) : null;
+    const wc = view && !view.webContents.isDestroyed() ? view.webContents : null;
+    if (!wc) return;
+    const setFill = (on) => {
+      this._fullscreenId = on ? id : null;
+      this.layout();
+    };
+    const script = `(() => {
+      const ID = '__myapps_fill';
+      const old = document.getElementById(ID);
+      if (old) { old.remove(); return 'off'; }
+      const vids = [...document.querySelectorAll('video')].filter((v) => {
+        const r = v.getBoundingClientRect();
+        return v.readyState >= 2 && r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight;
+      });
+      const area = (v) => { const r = v.getBoundingClientRect();
+        return Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)) * r.width; };
+      vids.sort((a, b) => (Number(a.paused) - Number(b.paused)) || (area(b) - area(a)));
+      const v = vids[0];
+      if (!v) return 'none';
+      const box = document.createElement('div');
+      box.id = ID;
+      box.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#000;';
+      const canvas = document.createElement('canvas');
+      canvas.style.cssText = 'width:100%;height:100%;display:block;';
+      box.appendChild(canvas);
+      box.addEventListener('click', () => { if (v.paused) v.play(); else v.pause(); });
+      document.documentElement.appendChild(box);
+      const ctx = canvas.getContext('2d');
+      const probe = document.createElement('canvas');
+      probe.width = 64; probe.height = 114;
+      const pctx = probe.getContext('2d', { willReadFrequently: true });
+      // Many TikTok videos have black bars baked into the file. The content
+      // box is the union of the non-black area seen so far, so a dark scene
+      // never crops the picture, and the bars drop out as frames are seen.
+      let box2 = null;
+      const scan = () => {
+        pctx.drawImage(v, 0, 0, 64, 114);
+        const d = pctx.getImageData(0, 0, 64, 114).data;
+        let t = 114, bt = -1, l = 64, r = -1;
+        for (let y = 0; y < 114; y++) for (let x = 0; x < 64; x++) {
+          const i = (y * 64 + x) * 4;
+          if (d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11 > 24) {
+            if (y < t) t = y; if (y > bt) bt = y; if (x < l) l = x; if (x > r) r = x;
+          }
+        }
+        if (bt < 0) return;
+        box2 = box2
+          ? { t: Math.min(box2.t, t), b: Math.max(box2.b, bt), l: Math.min(box2.l, l), r: Math.max(box2.r, r) }
+          : { t, b: bt, l, r };
+      };
+      let n = 0;
+      const draw = () => {
+        if (!box.isConnected) return;
+        const W = Math.round(innerWidth * devicePixelRatio);
+        const H = Math.round(innerHeight * devicePixelRatio);
+        if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+        const vw = v.videoWidth, vh = v.videoHeight;
+        if (vw && vh && v.readyState >= 2) {
+          if (n++ % 10 === 0) { try { scan(); } catch (e) { /* ignore */ } }
+          let sx = 0, sy = 0, sw = vw, sh = vh;
+          if (box2) {
+            const cw = (box2.r - box2.l + 1) / 64 * vw;
+            const ch = (box2.b - box2.t + 1) / 114 * vh;
+            // Only crop clear bars (over 8% of a side); ignore tiny ones.
+            if (cw < vw * 0.92 || ch < vh * 0.92) {
+              sx = box2.l / 64 * vw; sy = box2.t / 114 * vh; sw = cw; sh = ch;
+            }
+          }
+          const k = Math.min(W / sw, H / sh);
+          const dw = sw * k, dh = sh * k;
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, W, H);
+          ctx.drawImage(v, sx, sy, sw, sh, (W - dw) / 2, (H - dh) / 2, dw, dh);
+        }
+        requestAnimationFrame(draw);
+      };
+      requestAnimationFrame(draw);
+      return 'on';
+    })()`;
+    wc.executeJavaScript(script, true).then(
+      (r) => setFill(r === 'on' ? true : r === 'off' ? false : !this._fullscreenId),
+      () => setFill(!this._fullscreenId),
+    );
+  }
+
   layout() {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
     const cb = this.mainWindow.getContentBounds();
@@ -478,7 +585,9 @@ class ViewManager extends EventEmitter {
     const height = Math.max(0, cb.height - top);
     for (const [id, view] of this.views) {
       const link = this._link(id);
-      if (link && link.viewMode === 'mobile') {
+      if (id === this._fullscreenId) {
+        view.setBounds({ x: 0, y: 0, width: cb.width, height: cb.height });
+      } else if (link && link.viewMode === 'mobile') {
         const w = Math.min(width, MOBILE_VIEW_WIDTH);
         view.setBounds({ x: sidebarWidth + Math.floor((width - w) / 2), y: top, width: w, height });
         this._syncMobileSize(id);

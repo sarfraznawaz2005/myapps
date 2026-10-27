@@ -746,6 +746,12 @@ function initIpc(ctx) {
     return viewManager.navigate(id, url);
   });
 
+  handle(CH.NAV_FILL_WINDOW, () => {
+    viewManager.toggleFill();
+    viewManager.focusActive();
+    return true;
+  });
+
   handle(CH.NAV_COPY_URL, () => {
     const id = viewManager.getActiveId();
     const view = id ? viewManager.getView(id) : null;

@@ -78,6 +78,7 @@ const CH = {
   NAV_GO: 'nav:go',
   NAV_NAVIGATE: 'nav:navigate',
   NAV_COPY_URL: 'nav:copy-url',
+  NAV_FILL_WINDOW: 'nav:fill-window',
   NAV_OPEN_EXTERNAL: 'nav:open-external',
 
   METRICS_GET: 'metrics:get',

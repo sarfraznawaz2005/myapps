@@ -37,6 +37,7 @@ function render() {
     <button id="tb-css" title="Custom CSS for this site">${iconHtml('paintbrush')}</button>
     <button id="tb-note" title="Add note">${iconHtml('note')}</button>
     <button id="tb-whatsapp" title="WhatsApp extras" style="display:none">${iconHtml('eyeOff')}</button>
+    <button id="tb-fill" title="Fill the window (F11)" style="display:none">${iconHtml('maximize')}</button>
     <button id="tb-copy" title="Copy URL">${iconHtml('copy')}</button>
     <button id="tb-external" title="Open in browser">${iconHtml('external')}</button>
     <button id="tb-downloads" title="Downloads">${iconHtml('download')}</button>
@@ -71,6 +72,7 @@ function render() {
     const id = getState().activeLinkId;
     if (id) openWhatsappDialog(id);
   });
+  document.getElementById('tb-fill').addEventListener('click', () => window.myApps.invoke('nav:fill-window'));
   document.getElementById('tb-dark').addEventListener('click', () => {
     const id = getState().activeLinkId;
     const link = id ? getLink(id) : null;
@@ -327,6 +329,13 @@ export function update() {
   const waOn = !!link && !!link.whatsapp && Object.entries(link.whatsapp).some(([k, v]) => k !== 'notifyContacts' && v === true);
   waBtn.style.color = waOn ? 'var(--accent)' : '';
   waBtn.title = waOn ? 'WhatsApp extras (some are on)' : 'WhatsApp extras';
+  // Fill-window button: only for a link that is on TikTok right now.
+  let onTiktok = false;
+  try {
+    const host = new URL(status.url || (link && link.url) || '').hostname;
+    onTiktok = host === 'tiktok.com' || host.endsWith('.tiktok.com');
+  } catch (_e) { /* no URL yet */ }
+  document.getElementById('tb-fill').style.display = link && onTiktok ? '' : 'none';
   const darkBtn = document.getElementById('tb-dark');
   const dark = !!link && !!link.darkMode;
   darkBtn.disabled = !link;

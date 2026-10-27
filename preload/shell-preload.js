@@ -20,7 +20,7 @@ const INVOKE_CHANNELS = new Set([
   'dnd:set',
   'downloads:list', 'downloads:act', 'downloads:clear',
   'page:screenshot', 'page:print', 'page:pdf',
-  'nav:go', 'nav:navigate', 'nav:copy-url', 'nav:open-external',
+  'nav:go', 'nav:navigate', 'nav:copy-url', 'nav:fill-window','nav:open-external',
   'metrics:get', 'menu:link-context',
   'link:permission-respond',
   'lock:status', 'lock:unlock', 'lock:now', 'lock:set', 'lock:remove',

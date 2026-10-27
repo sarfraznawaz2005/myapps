@@ -100,6 +100,19 @@ function attachShortcuts(wc, { store, viewManager, mainWindow, appLock, linkSwit
       return;
     }
 
+    // Esc leaves a filled window (the toolbar is covered, so no button to click).
+    if (input.key === 'Escape' && viewManager._fullscreenId) {
+      event.preventDefault();
+      viewManager.toggleFill();
+      return;
+    }
+
+    if (input.key === 'F11') {
+      event.preventDefault();
+      viewManager.toggleFill();
+      return;
+    }
+
     if (input.key === 'F12') {
       event.preventDefault();
       if (!wc.isDestroyed()) wc.toggleDevTools();

@@ -524,6 +524,14 @@ function setupImageZoom(initiallyOn) {
   });
 }
 
+// Popup windows (target=_blank, window.open) are not saved links. They get
+// the password manager only: no badge, no expert rules, no userscripts.
+if (!linkId && process.argv.includes('--myapps-popup')) {
+  const boot = ipcRenderer.sendSync('link:bootstrap', 'popup') || {};
+  const cfg = boot.config || {};
+  setupPasswordManager(!!cfg.passwordManager, !!cfg.revealPassword);
+}
+
 if (linkId) {
   // One synchronous round-trip for this link's current config + the
   // injected-script source text (main reads inject-main-world.js from disk

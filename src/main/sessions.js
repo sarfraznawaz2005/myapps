@@ -79,11 +79,15 @@ function getLinkSession(link, store) {
       // The user already chose the file/folder via a native OS dialog before this
       // fires, so it's the same informed consent Chrome grants automatically.
       if (permission === 'fileSystem') return callback(true);
+      // Write-only clipboard access (a site's own "Copy link" button). Chrome
+      // allows it without a prompt. Reading the clipboard stays blocked.
+      if (permission === 'clipboard-sanitized-write') return callback(true);
       return callback(false);
     });
 
     ses.setPermissionCheckHandler((_webContents, permission) => {
       if (permission === 'notifications') return true;
+      if (permission === 'clipboard-sanitized-write') return true;
       if (permission === 'media') return !!liveLink().navigation.allowMedia;
       if (permission === 'geolocation') return !!liveLink().navigation.allowLocation;
       return false;

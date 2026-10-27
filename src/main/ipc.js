@@ -308,7 +308,7 @@ function initIpc(ctx) {
     const link = store.getState().links.find((l) => l.id === linkId);
     const { settings, userscripts } = store.getState();
     event.returnValue = {
-      config: link ? buildLinkRuleConfig(link, settings, userscripts) : { expert: { enabled: false }, scrollArrows: false, highlightKeywords: cleanKeywords(settings.highlightKeywords), userscripts: [] },
+      config: link ? buildLinkRuleConfig(link, settings, userscripts) : { expert: { enabled: false }, scrollArrows: false, highlightKeywords: cleanKeywords(settings.highlightKeywords), passwordManager: !!settings.passwordManager, revealPassword: !!settings.revealPassword, userscripts: [] },
       source: INJECTED_SOURCE,
       whatsappSource: WHATSAPP_SOURCE,
     };

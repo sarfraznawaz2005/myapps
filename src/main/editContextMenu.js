@@ -6,6 +6,19 @@ const os = require('os');
 const path = require('path');
 const { CH } = require('./constants');
 
+// Popup windows get the password-manager part of the link preload, so
+// "Save password?" and autofill work there too.
+const POPUP_PRELOAD = path.join(__dirname, '..', '..', 'preload', 'link-preload.js');
+function popupWebPreferences(session) {
+  return {
+    session,
+    preload: POPUP_PRELOAD,
+    additionalArguments: ['--myapps-popup'],
+    contextIsolation: true,
+    nodeIntegration: false,
+  };
+}
+
 function toastToShell(mainWindow, type, message) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send(CH.SHELL_TOAST, { type, message });
@@ -119,7 +132,7 @@ function wirePopupSessions(webContents, ses, mainWindow, shouldAllow = () => tru
       overrideBrowserWindowOptions: {
         autoHideMenuBar: true,
         backgroundColor: '#ffffff',
-        webPreferences: { session: resolveSession(url) || ses, contextIsolation: true, nodeIntegration: false },
+        webPreferences: popupWebPreferences(resolveSession(url) || ses),
       },
     };
   });
@@ -152,7 +165,7 @@ function openWindowOnSession(ses, url, referrer, mainWindow, shouldAllow, resolv
     autoHideMenuBar: true,
     backgroundColor: '#ffffff',
     icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
-    webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false },
+    webPreferences: popupWebPreferences(ses),
   });
   attachEditContextMenu(child.webContents, { withPageControls: true, mainWindow });
   wirePopupSessions(child.webContents, ses, mainWindow, shouldAllow, resolveSession);
@@ -171,11 +184,7 @@ function openLinkInNewWindow(webContents, url, mainWindow) {
     autoHideMenuBar: true,
     backgroundColor: '#ffffff',
     icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
-    webPreferences: {
-      session: ses,
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
+    webPreferences: popupWebPreferences(ses),
   });
   attachEditContextMenu(child.webContents, { withPageControls: true, mainWindow });
   wirePopupSessions(child.webContents, ses, mainWindow);

@@ -449,10 +449,21 @@ class ViewManager extends EventEmitter {
   // _syncActiveVisibility works around for modals. Detaching and
   // re-attaching forces Windows to redo input hit-testing without needing a
   // full hide/show of the whole app window.
-  kickActiveView() {
+  //
+  // soft: only move the view to the top, without detaching it. Detaching makes
+  // the page hidden for a moment (visibilitychange), and chat sites take that
+  // as "the user left" (Instagram: "you are no longer present in this chat").
+  // Used for notification toasts, which can close while the user is typing.
+  kickActiveView({ soft = false } = {}) {
     if (this.modalOpen || this.locked) return;
     const view = this.activeId ? this.views.get(this.activeId) : null;
     if (!view) return;
+    if (soft) {
+      // addChildView on a view that is already a child only reorders it.
+      this.mainWindow.contentView.addChildView(view);
+      view.setVisible(true);
+      return;
+    }
     if (this.mainWindow.contentView.children.includes(view)) {
       this.mainWindow.contentView.removeChildView(view);
     }

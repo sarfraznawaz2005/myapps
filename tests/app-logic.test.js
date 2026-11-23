@@ -215,6 +215,13 @@ describe('desktop / mobile view', () => {
     assert.equal(h.fullVersionList.find((b) => b.brand === 'Chromium').version, '152.0.7977.130');
   });
 
+  test('desktop client hints say Windows, not mobile, with the given version', () => {
+    const h = clientHintsFor('154.0.0.0', false);
+    assert.equal(h.mobile, false);
+    assert.equal(h.platform, 'Windows');
+    assert.equal(h.brands.find((b) => b.brand === 'Google Chrome').version, '154');
+  });
+
   test('setViewMode saves the choice, rejects bad values, and reloads after emulation is applied', async () => {
     const link = { id: 'v', viewMode: 'desktop' };
     const calls = [];

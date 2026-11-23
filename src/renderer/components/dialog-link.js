@@ -42,7 +42,7 @@ function defaultDraft() {
     keepPlaying: false,
     openOnStartup: false,
     notifications: { enabled: true, sound: true, synthesize: 'auto' },
-    navigation: { openExternal: false, allowMedia: false, mediaDecided: false, allowLocation: false, locationDecided: false, blockAds: true, allowedPopupHosts: [] },
+    navigation: { openExternal: false, openInline: false, allowMedia: false, mediaDecided: false, allowLocation: false, locationDecided: false, blockAds: true, allowedPopupHosts: [] },
     unread: {
       enabled: true,
       title: { mode: 'auto', regex: null },
@@ -145,6 +145,7 @@ function generalTabHtml() {
         <div class="hint" id="lk-proxy-hint">This link's own choice wins over the global proxy. Changing it reloads the link. Proxies that ask for a user name and password are not supported.</div>
       </div>
       <div class="checkbox-row"><input type="checkbox" id="lk-open-external" ${d.navigation.openExternal ? 'checked' : ''} /><label for="lk-open-external">Open unrelated links in the default browser</label></div>
+      <div class="checkbox-row"><input type="checkbox" id="lk-open-inline" ${d.navigation.openInline ? 'checked' : ''} /><label for="lk-open-inline">Open Links Inline (in this tab, not a new window)</label></div>
       <div class="checkbox-row"><input type="checkbox" id="lk-block-ads" ${d.navigation.blockAds !== false ? 'checked' : ''} /><label for="lk-block-ads">Block ads and trackers</label></div>
       <div class="checkbox-row"><input type="checkbox" id="lk-allow-media" ${d.navigation.allowMedia ? 'checked' : ''} /><label for="lk-allow-media">Allow camera/microphone</label></div>
       <div class="checkbox-row"><input type="checkbox" id="lk-allow-location" ${d.navigation.allowLocation ? 'checked' : ''} /><label for="lk-allow-location">Allow location</label></div>
@@ -318,6 +319,7 @@ function wireGeneralTab() {
   bind('lk-open-external', 'change', (el) => el.checked, (v) => { draft.navigation.openExternal = v; });
   // Setting this by hand counts as a decision too, same as answering the
   // live Allow/Block prompt — either way we shouldn't ask again later.
+  bind('lk-open-inline', 'change', (el) => el.checked, (v) => { draft.navigation.openInline = v; });
   bind('lk-block-ads', 'change', (el) => el.checked, (v) => { draft.navigation.blockAds = v; });
   bind('lk-allow-media', 'change', (el) => el.checked, (v) => { draft.navigation.allowMedia = v; draft.navigation.mediaDecided = true; });
   bind('lk-allow-location', 'change', (el) => el.checked, (v) => { draft.navigation.allowLocation = v; draft.navigation.locationDecided = true; });

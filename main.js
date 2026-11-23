@@ -34,6 +34,12 @@ const { CH } = require('./src/main/constants');
 // taskbar icon to this ID, and a dev run would otherwise register it as "Electron"
 // and hijack the installed/unpacked app's identity.
 app.setAppUserModelId(app.isPackaged ? APP_ID : `${APP_ID}.dev`);
+// Popups (window.open) report this user-agent, not their session's one, so
+// it must not say "Electron/" either: Snapchat, Google etc. block that.
+app.userAgentFallback = app.userAgentFallback
+  .split(' ')
+  .filter((tok) => !tok.startsWith('Electron/') && !tok.startsWith('MyApps/'))
+  .join(' ');
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {

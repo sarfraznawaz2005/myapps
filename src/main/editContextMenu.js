@@ -125,8 +125,9 @@ function downloadImageToDisk(webContents, url) {
 // `resolveSession(url)` may return a different session (the one of a saved
 // link that owns that site) or null to keep `ses`.
 function wirePopupSessions(webContents, ses, mainWindow, shouldAllow = () => true, resolveSession = () => null) {
-  webContents.setWindowOpenHandler(({ url }) => {
-    if (!shouldAllow(url)) return { action: 'deny' };
+  webContents.setWindowOpenHandler((details) => {
+    const { url } = details;
+    if (!shouldAllow(url, details)) return { action: 'deny' };
     return {
       action: 'allow',
       overrideBrowserWindowOptions: {
@@ -137,6 +138,7 @@ function wirePopupSessions(webContents, ses, mainWindow, shouldAllow = () => tru
     };
   });
   webContents.on('did-create-window', (childWindow) => {
+    matchSessionUserAgent(childWindow.webContents);
     attachEditContextMenu(childWindow.webContents, { withPageControls: true, mainWindow });
     // Use the session the window really got, so deeper popups keep it.
     wirePopupSessions(childWindow.webContents, childWindow.webContents.session, mainWindow, shouldAllow, resolveSession);
@@ -156,6 +158,26 @@ function wirePopupSessions(webContents, ses, mainWindow, shouldAllow = () => tru
     wc.on('will-redirect', (event, navUrl) => reroute(event, navUrl || event.url));
     wc.on('will-navigate', (event, navUrl) => reroute(event, navUrl || event.url));
   });
+}
+
+// A window.open() popup ignores its session's user-agent: its page reports
+// app.userAgentFallback instead (tested on Electron 44; setUserAgent and a
+// reload do not help). So a link with a custom user-agent (Edit dialog)
+// would lose it in every popup. Chrome's DevTools protocol override does
+// reach the popup's first load. Client hints go with it, else
+// navigator.userAgentData would report no brands at all.
+function matchSessionUserAgent(wc) {
+  const ua = wc.session.getUserAgent();
+  if (!ua || ua === app.userAgentFallback) return;
+  const { clientHintsFor } = require('./viewManager'); // lazy: viewManager requires this file
+  const m = ua.match(/Chrome\/([\d.]+)/);
+  try {
+    if (!wc.debugger.isAttached()) wc.debugger.attach('1.3');
+    wc.debugger.sendCommand('Emulation.setUserAgentOverride', {
+      userAgent: ua,
+      userAgentMetadata: clientHintsFor(m ? m[1] : process.versions.chrome, false),
+    }).catch(() => {});
+  } catch (_e) { /* protocol busy: the page keeps the fallback user-agent */ }
 }
 
 function openWindowOnSession(ses, url, referrer, mainWindow, shouldAllow, resolveSession) {

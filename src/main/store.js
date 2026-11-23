@@ -132,6 +132,8 @@ function defaultLinkFields() {
     // the Edit dialog's checkboxes, which also set it true when flipped by hand).
     navigation: {
       openExternal: false,
+      // Links that would open a new window load in the link's own tab instead.
+      openInline: false,
       allowedPopupHosts: [],
       allowMedia: false,
       mediaDecided: false,

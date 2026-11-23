@@ -50,7 +50,9 @@ function userAgentFor(link, sessionUserAgent, chromeVersion) {
 
 // Pure. What navigator.userAgentData and the Sec-CH-UA-* request headers report
 // in mobile view (sites that ignore the user-agent text read these instead).
-function clientHintsFor(chromeVersion) {
+// mobile=false gives the Windows desktop set (used for popups, see
+// editContextMenu.js).
+function clientHintsFor(chromeVersion, mobile = true) {
   const full = String(chromeVersion || '120.0.0.0');
   const major = full.split('.')[0] || '120';
   const list = (v, grease) => [
@@ -58,6 +60,19 @@ function clientHintsFor(chromeVersion) {
     { brand: 'Google Chrome', version: v },
     { brand: 'Not.A/Brand', version: grease },
   ];
+  if (!mobile) {
+    return {
+      brands: list(major, '99'),
+      fullVersionList: list(full, '99.0.0.0'),
+      platform: 'Windows',
+      platformVersion: '10.0.0',
+      architecture: 'x86',
+      model: '',
+      mobile: false,
+      bitness: '64',
+      wow64: false,
+    };
+  }
   return {
     brands: list(major, '99'),
     fullVersionList: list(full, '99.0.0.0'),
@@ -271,7 +286,19 @@ class ViewManager extends EventEmitter {
       if (link.navigation && link.navigation.openExternal) shell.openExternal(url);
       return false;
     };
-    wirePopupSessions(wc, ses, this.mainWindow, shouldAllowPopup, (url) => {
+    // "Open Links Inline" (Edit dialog): a link that would open a new window
+    // loads in this tab instead. Only for link-style opens: a scripted popup
+    // with a size ('new-window', e.g. an OAuth login) still opens as a window,
+    // because the page waits for that window to report back.
+    const shouldAllowOrInline = (url, details = {}) => {
+      if (!shouldAllowPopup(url)) return false;
+      const live = this._link(id) || link;
+      if (!live.navigation || !live.navigation.openInline) return true;
+      if (details.disposition === 'new-window' || !/^https?:/i.test(url)) return true;
+      if (!wc.isDestroyed()) wc.loadURL(url, { httpReferrer: wc.getURL() });
+      return false;
+    };
+    wirePopupSessions(wc, ses, this.mainWindow, shouldAllowOrInline, (url) => {
       // Same-site popups (OAuth etc.) must keep this link's own session.
       if (sameSite(url, link.url)) return null;
       return this._sessionForUrl(url);
